@@ -1,0 +1,9 @@
+*.pyc
+*.pptx
+/plots/*
+/csv/*
+/animations/*
+/netcdf/*
+/output/*
+/relationships/*
+
