@@ -11,6 +11,7 @@ import glob
 from netCDF4 import Dataset
 import datetime
 import sys
+import weight_stats as ws
 # OceanICU framework functions
 sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU')
 sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU\Data_Loading')
@@ -35,8 +36,10 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr):
             ['OSISAF','ice_conc','D:/Data/OSISAF/monthly/'+str(res)+'DEG/%Y/%Y%m*COM.nc',0]]
 
     cinp.driver(occci_file,vars,start_yr = start_yr,end_yr = end_yr,lon = lon,lat = lat,fill_clim=False)
-
-res = 1
+font = {'weight' : 'normal',
+        'size'   :14}
+matplotlib.rc('font', **font)
+res = 0.25
 lon,lat = du.reg_grid(lat=res,lon=res)
 start_yr = 1997
 end_yr = 2022
@@ -90,7 +93,7 @@ for file in files:
             if l == 12:
                 t=1
     arg = np.array(arg); oc = np.array(oc); dif = np.array(dif)
-    fig = plt.figure(figsize=(15,7))
+    fig = plt.figure(figsize=(18,7))
 
     meds = np.zeros((10,3))
     for i in range(0,10):
@@ -107,18 +110,27 @@ for file in files:
     plt.ylabel('Percentage difference to OC-CCI chl-a')
     fig.savefig('plots/backwards_'+file+'_'+str(res)+'deg.png',dpi=300)
     np.savetxt('relationships/backwards_'+file+'_'+str(res)+'deg.csv',meds,delimiter=',',header='month_diff,% difference,number_samples')
-    fig = plt.figure()
-    c = [-3,1]
+
+    fig, ax = plt.subplots(1,1,figsize=(7,7))
+    unit = 'log$_{10}$(mgm$^{-3}$)'
+    c = np.array([-3,2])
     g = np.where(dif == 0)
     print(med)
-    plt.scatter(np.log10(arg[g]),np.log10(oc[g]),label='No Bias Correction')
-    plt.scatter(np.log10(arg[g])-med,np.log10(oc[g]),label='Bias Corrected')
-    plt.plot(c,c,'k-')
-    plt.xlim(c)
-    plt.ylim(c)
-    plt.xlabel('Argo Chl-a (log$_{10}$(mgm$^{-3}$))')
-    plt.ylabel('OCCCI Chl-a (log$_{10}$(mgm$^{-3}$))')
-    plt.legend()
+    ax.scatter(np.log10(arg[g]),np.log10(oc[g]),label='No Bias Correction',s=6,color='b',zorder=3)
+    stats=ws.unweighted_stats(np.log10(arg[g]),np.log10(oc[g]),file)
+    #plt.scatter(np.log10(arg[g])-med,np.log10(oc[g]),label='Bias Corrected',s=6,color='r')
+    ax.plot(c,c,'k-')
+    ax.set_xlim(c); ax.set_ylim(c)
+    ax.plot(c,c*stats['slope']+stats['intercept'],'b--')
+    ax.set_xlabel('Argo Chl-a (log$_{10}$(mgm$^{-3}$))')
+    ax.set_ylabel('OCCCI Chl-a (log$_{10}$(mgm$^{-3}$))')
+    rmsd = '%.2f' %np.round(stats['rmsd'],2); bias = '%.2f' %np.round(stats['med_rel_bias'],2); sl = '%.2f' %np.round(stats['slope'],2);
+    ip = '%.2f' %np.round(stats['intercept'],2); n = stats['n']
+    ax.text(0.5,0.3,f'Unweighted Stats\nRMSD = {rmsd} {unit}\nBias = {bias} {unit}\nSlope = {sl}\nIntercept = {ip}\nN = {n}',transform=ax.transAxes,va='top')
+    ax.grid()
+    ax.set_title(file)
+
+    #plt.legend()
     fig.savefig('plots/compare_'+file+'_'+str(res)+'deg.png',dpi=300)
 
     arg = []
@@ -142,7 +154,7 @@ for file in files:
                 if l == 12:
                     t=1
     arg = np.array(arg); oc = np.array(oc); dif = np.array(dif)
-    fig = plt.figure(figsize=(15,7))
+    fig = plt.figure(figsize=(18,7))
     meds = np.zeros((10,3))
     for i in range(0,10):
         g = np.where((dif == i))

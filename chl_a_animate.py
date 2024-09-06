@@ -36,8 +36,8 @@ def animate(i):
     c = ax.pcolor(lon,lat,np.transpose(flag[:,:,i]),cmap='tab10',vmin=2,vmax=11)
     c2 = fig.colorbar(c,ax=ax)
     c2.set_label('Chl a Flag ')
-
-c = Dataset('oc-cci_chla_corrected.nc','r')
+res = 0.25
+c = Dataset('output/oc-cci_chla_corrected_'+str(res)+'deg.nc','r')
 lon = np.array(c['longitude'])
 lat = np.array(c['latitude'])
 chla = np.array(c['chl'])
@@ -46,4 +46,4 @@ flag[flag == 1] = np.nan
 c.close()
 fig = plt.figure(figsize=(15,15))
 ani = FuncAnimation(fig, animate, interval=40, blit=False, repeat=True,frames=chla.shape[2])
-ani.save('animated.mp4', dpi=300, writer=FFMpegWriter(fps=3))
+ani.save('animations/animated_'+str(res)+'deg.mp4', dpi=300, writer=FFMpegWriter(fps=3))

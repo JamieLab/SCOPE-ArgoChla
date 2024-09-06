@@ -138,7 +138,7 @@ for k in range(len(lat_bounds)):
                     c.close()
                     #ch[ch>30] = np.nan
 
-                    f = np.where(depth > 20)
+                    f = np.where(depth < 20)
                     ch = np.nanmean(ch[f])
                     qf2 = np.nanmean(qf2[f])
                     print([flo_date.year,flo_date.month,flo_date.day,lat[0],lon[0],ch,qf2])

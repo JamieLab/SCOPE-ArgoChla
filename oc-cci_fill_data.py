@@ -92,8 +92,8 @@ argo_f_arctic = np.loadtxt('relationships/forwards_'+files[1]+'_'+str(res)+'deg.
 
 occci_file = 'netcdf/oc-cci_chlor_a_'+str(res)+'deg.nc'
 outfile = 'output/oc-cci_chla_corrected_'+str(res)+'deg.nc'
-#outloc = 'D:/ESA_CONTRACT/NN/SCOPE_CHLA/inputs/chla'
-outloc = False
+outloc = 'E:/SCOPE/NN/Ford_et_al_SOM_chla/inputs/chla'
+#outloc = False
 c = Dataset(occci_file,'r')
 chla = np.array(c['OC-CCI_chlor_a'])
 ice = np.array(c['OSISAF_ice_conc'])

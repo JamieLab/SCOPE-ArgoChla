@@ -18,7 +18,8 @@ sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA
 sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU\Data_Loading')
 
 import data_utils as du
-res = 0.25
+
+res = 1
 lon,lat = du.reg_grid(lat=res,lon=res)
 res_h = res/2
 start_yr = 1997
