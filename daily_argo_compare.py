@@ -13,17 +13,19 @@ import glob
 from netCDF4 import Dataset
 import datetime
 import weight_stats as ws
-
+let = ['a','b','c','d','e']
 occci_loc = 'E:/Data/OC-CCI/v6.0/daily'
 files = ['argo_chla_southernocean','argo_chla_arctic']
+res_plot = True
+res = 0.25
 generate = False
-plot = True
+plot = False
 
 if generate:
     t = 0
     for file in files:
         data = np.genfromtxt('csv/'+file+'.csv', delimiter=',')
-        matched_chl = np.zeros((len(data),1))
+        matched_chl = np.zeros((len(data),2))
         matched_chl[:] = np.nan
         for i in range(len(data)):
             yr = int(data[i,0])
@@ -54,12 +56,15 @@ if generate:
                 oc_chl[oc_chl>10000] = np.nan
                 print(oc_chl)
                 oc_chl = 10**np.nanmean(np.log10(np.ravel(oc_chl)))
+                oc_chl_std = np.nanstd(np.log10(np.ravel(oc_chl)))
                 print(oc_chl)
+                print(oc_chl_std)
 
                 c.close()
-                matched_chl[i] = oc_chl
+                matched_chl[i,0] = oc_chl
+                matched_chl[i,1] = oc_chl_std
         data = np.concatenate((data,matched_chl),axis=1)
-        np.savetxt('csv/'+file+'_daily.csv',data,delimiter=',')
+        np.savetxt('csv/'+file+'_daily.csv',data,delimiter=',',fmt='%5f')
 
 if plot:
     font = {'weight' : 'normal',
@@ -78,7 +83,7 @@ if plot:
     for file in files:
         data = np.genfromtxt('csv/'+file+'_daily.csv', delimiter=',')
         data[np.log10(data[:,5])<-2.2,5] = np.nan
-        c = np.array([-3,1])
+        c = np.array([-3,1.5])
 
         axs[i].scatter(np.log10(data[:,5]),np.log10(data[:,7]),s=6,zorder=4,color='b')
         axs[i].plot(c,c,'k-')
@@ -104,3 +109,71 @@ if plot:
         i=i+1
     plt.suptitle('Daily OC-CCI matchups')
     fig.savefig('plots/argo_daily_validation.png',dpi=300)
+
+if res_plot:
+    font = {'weight' : 'normal',
+            'size'   :16}
+    matplotlib.rc('font', **font)
+    worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+    unit = 'log$_{10}$(mgm$^{-3}$)'
+    col = 2
+    row = int(len(files))
+    fig = plt.figure(figsize=(14,7*row))
+    gs = GridSpec(row,col, figure=fig, wspace=0.2,hspace=0.25,bottom=0.1,top=0.95,left=0.07,right=0.95)
+    axs = [[fig.add_subplot(gs[i, j]) for j in range(col)] for i in range(row)]
+    flatList = [element for innerList in axs for element in innerList]
+    axs = flatList
+    i=0
+    for file in files:
+        data = np.genfromtxt('csv/'+file+'_daily.csv', delimiter=',')
+        data[np.log10(data[:,5])<-2.2,5] = np.nan
+        c = np.array([-3,1.5])
+
+        axs[i].scatter(np.log10(data[:,5]),np.log10(data[:,7]),s=6,zorder=4,color='b')
+        axs[i].plot(c,c,'k-')
+        #axs[i].set_title(file)
+        stats = ws.unweighted_stats(np.log10(data[:,5]),np.log10(data[:,7]),file)
+        print(stats)
+        axs[i].plot(c,c*stats['slope']+stats['intercept'],'b--')
+        #axs[i].scatter(np.log10(data[:,5])+stats['med_rel_bias'],np.log10(data[:,7]),s=6,color='r',label = 'Bias corrected')
+        axs[i].grid()
+        rmsd = '%.2f' %np.round(stats['rmsd'],2); bias = '%.2f' %np.round(stats['med_rel_bias'],2); sl = '%.2f' %np.round(stats['slope'],2);
+        ip = '%.2f' %np.round(stats['intercept'],2); n = stats['n']
+        axs[i].text(0.45,0.35,f'Unweighted Stats\nRMSD = {rmsd} {unit}\nBias = {bias} {unit}\nSlope = {sl}\nIntercept = {ip}\nN = {n}',transform=axs[i].transAxes,va='top')
+        axs[i].set_xlim(c); axs[i].set_ylim(c);
+        axs[i].text(0.03,0.95,f'({let[i]})',transform=axs[i].transAxes,va='top',fontweight='bold',fontsize = 25)
+
+
+        i=i+1
+    cp = np.array([-3,1.5])
+    c = Dataset(f'netcdf/oc-cci_chlor_a_{res}deg.nc','r')
+    cci = np.array(c['OC-CCI_chlor_a'])
+    c.close()
+    for file in files:
+        c=Dataset(f'netcdf/{file}_{res}deg.nc','r')
+        argo = np.array(c['chl'])
+        c.close()
+        cci[cci<-2.2] = np.nan
+        argo[argo<-2.2] = np.nan
+        f = np.where((np.isnan(argo) == 0) & (np.isnan(cci) == 0))
+        axs[i].scatter(argo[f],cci[f],s=6,zorder=4,color='b')
+        axs[i].plot(cp,cp,'k-')
+
+        axs[i].grid()
+        stats = ws.unweighted_stats(argo[f],cci[f],file+'_res')
+        rmsd = '%.2f' %np.round(stats['rmsd'],2); bias = '%.2f' %np.round(stats['med_rel_bias'],2); sl = '%.2f' %np.round(stats['slope'],2);
+        ip = '%.2f' %np.round(stats['intercept'],2); n = stats['n']
+        axs[i].plot(cp,cp*stats['slope']+stats['intercept'],'b--')
+        axs[i].text(0.45,0.35,f'Unweighted Stats\nRMSD = {rmsd} {unit}\nBias = {bias} {unit}\nSlope = {sl}\nIntercept = {ip}\nN = {n}',transform=axs[i].transAxes,va='top')
+        axs[i].set_xlim(cp); axs[i].set_ylim(cp);
+        axs[i].text(0.03,0.95,f'({let[i]})',transform=axs[i].transAxes,va='top',fontweight='bold',fontsize = 25)
+        i=i+1
+
+    for i in range(4):
+        if (i == 0) | (i == 2):
+            axs[i].set_ylabel('OC-CCI Chl-a (log$_{10}$(mgm$^{-3}$))')
+        if (i == 2) | (i ==3):
+            axs[i].set_xlabel('Argo Chl-a (log$_{10}$(mgm$^{-3}$))')
+
+    #plt.suptitle('Daily OC-CCI matchups')
+    fig.savefig('plots/argo_res_daily_validation.png',dpi=300)
