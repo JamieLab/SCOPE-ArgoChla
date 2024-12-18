@@ -40,15 +40,15 @@ Monthy runs
 # climatology_plotting(occci_file,bathy_file,[[-60,0],[-55,0],[-50,0],[-45,0]],output=f'plots/global_climatology_{str(res)}_deg.png')
 # plot_flag(occci_file,output=f'plots/flag_pixels_{str(res)}_deg.png')
 # plot_flag_l(occci_file,output=f'plots/flagl_pixels_{str(res)}_deg.png')
-# plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg.nc',output=f'plots/insitu_verification_{str(res)}_deg.png')
-# plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg_fluoro.nc',output=f'plots/insitu_verification_{str(res)}_deg_fluoro.png')
+plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg.nc',output=f'plots/insitu_verification_{str(res)}_deg.png')
+plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg_fluoro.nc',output=f'plots/insitu_verification_{str(res)}_deg_fluoro.png')
 
 # """
 # 8 day runs
 # """
-from oc_cci_8day_average import day_8_composite
-occci_file = 'netcdf/oc-cci_chlor_a_'+str(res)+'deg_8day.nc'
-ice_name = 'OSISAF_sea_ice_fraction'
-daystep = 8/30.5
-# day_8_composite(occci_file,res,start_yr,end_yr)
-oc_cci_fill(occci_file,bathy_file,daystep,res,reset = True,ice_name=ice_name)
+# from oc_cci_8day_average import day_8_composite
+# occci_file = 'netcdf/oc-cci_chlor_a_'+str(res)+'deg_8day.nc'
+# ice_name = 'OSISAF_sea_ice_fraction'
+# daystep = 8/30.5
+# # day_8_composite(occci_file,res,start_yr,end_yr)
+# oc_cci_fill(occci_file,bathy_file,daystep,res,reset = True,ice_name=ice_name)

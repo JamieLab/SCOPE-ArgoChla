@@ -306,6 +306,8 @@ def plot_chla_scatter(file_occci,file_chl,output = 'plots/insitu_verification.pn
     font = {'weight' : 'normal',
             'size'   :12}
     matplotlib.rc('font', **font)
+    sz = 8
+
     unit = 'log$_{10}$(mgm$^{-3}$)'
     c = Dataset(file_occci,'r')
     lat = np.array(c['latitude'])
@@ -316,7 +318,7 @@ def plot_chla_scatter(file_occci,file_chl,output = 'plots/insitu_verification.pn
     c = Dataset(file_chl,'r')
     chl_in = np.array(c['chl'])
     c.close()
-
+    c = np.array([-3,1.5])
     # f = np.where((lat < bounds[0]) & (lat > bounds[1]))[0]
     # print(f)
     fig = plt.figure(figsize=(7,7))
@@ -325,9 +327,8 @@ def plot_chla_scatter(file_occci,file_chl,output = 'plots/insitu_verification.pn
     # chla_t = chla[:,f,:]
     # flags_t = flags[:,f,:]
     # chl_in = chl_in[:,f,:]
-    c = np.array([-3,1.5])
     f = np.where(((flags == 5) | (flags == 6)) & (np.isnan(chl_in) == 0))
-    ax.scatter(chl_in[f],chla[f],zorder=4,color='b',label='Southern Hemisphere',s=16)
+    ax.scatter(chl_in[f],chla[f],zorder=4,color='b',label='Southern Hemisphere',s=sz)
     stats = ws.unweighted_stats(chl_in[f],chla[f],'a')
     ax.plot(c,c*stats['slope']+stats['intercept'],'b--')
     rmsd = '%.2f' %np.round(stats['rmsd'],2); bias = '%.2f' %np.round(stats['med_rel_bias'],2); sl = '%.2f' %np.round(stats['slope'],2);
@@ -336,7 +337,7 @@ def plot_chla_scatter(file_occci,file_chl,output = 'plots/insitu_verification.pn
 
 
     f = np.where(((flags == 7) | (flags == 8)) & (np.isnan(chl_in) == 0))
-    ax.scatter(chl_in[f],chla[f],zorder=4,color='r',label='Northern Hemisphere',s=16)
+    ax.scatter(chl_in[f],chla[f],zorder=4,color='r',label='Northern Hemisphere',s=sz)
     stats = ws.unweighted_stats(chl_in[f],chla[f],'a')
     ax.plot(c,c*stats['slope']+stats['intercept'],'r--')
     rmsd = '%.2f' %np.round(stats['rmsd'],2); bias = '%.2f' %np.round(stats['med_rel_bias'],2); sl = '%.2f' %np.round(stats['slope'],2);
