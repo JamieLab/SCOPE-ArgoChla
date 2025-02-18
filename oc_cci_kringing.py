@@ -437,7 +437,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         sst_o.comment = 'Negative indicates backwards; positive indicates forwards'
     c.close()
 
-    del chla, flag, unc, flag_l
+    #del chla, flag, unc, flag_l
 
     """
     """
@@ -502,11 +502,11 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             print('Processing != 1')
             c.close()
 
-    # c = Dataset(file,'a')
-    # c['chl_filled'][:] = chla
-    # c['chl_flag'][:] = flag
-    # c['chl_filled_unc'][:] = unc
-    # c.close()
+    c = Dataset(file,'a')
+    c['chl_filled'][:] = chla
+    c['chl_flag'][:] = flag
+    c['chl_filled_unc'][:] = unc
+    c.close()
     #
     # # c = Dataset(file,'r')
     # # chla = np.array(c['chl_filled'])

@@ -16,9 +16,9 @@ import data_utils as du
 
 let = ['a','b','c','d','e','f','g']
 
-def generate_occci(occci_file,res,lon,lat,start_yr,end_yr):
+def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     import CCI_OC_SPATIAL_AV as OC
-    OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat)
+    OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
     import Data_Loading.gebco_resample as ge
     ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2023.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc')
 
@@ -29,7 +29,7 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr):
     # OSISAF_merge_hemisphere('F:/Data/OSISAF/monthly/'+str(res)+'DEG', 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
 
     import construct_input_netcdf as cinp
-    vars = [['OC-CCI','chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG/%Y/%Y_%m_*.nc',0],
+    vars = [['OC-CCI','chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
         ['OC-CCI','chlor_a_log10_rmsd','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG/%Y/%Y_%m_*.nc',0],
             ['OSISAF','ice_conc','F:/Data/OSISAF/monthly/'+str(res)+'DEG/%Y/%Y%m*COM.nc',0]]
 
@@ -41,7 +41,7 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr):
 # end_yr = 2023
 # files = ['argo_chla_southernocean','argo_chla_arctic']
 
-def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9):
+def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     if plot:
         widths = 0.75
         font = {'weight' : 'normal',
@@ -54,7 +54,7 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         axs = flatList
         p=0
     lon,lat = du.reg_grid(lat=res,lon=res)
-    generate_occci(occci_file,res,lon,lat,start_yr,end_yr)
+    generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
     for file in files:
         app = file + '_' + str(res)
 
