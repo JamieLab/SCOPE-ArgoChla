@@ -30,16 +30,15 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_f
 
     import construct_input_netcdf as cinp
     vars = [['OC-CCI','chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
-        ['OC-CCI','chlor_a_log10_rmsd','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG/%Y/%Y_%m_*.nc',0],
+        ['OC-CCI','chlor_a_log10_rmsd','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
             ['OSISAF','ice_conc','F:/Data/OSISAF/monthly/'+str(res)+'DEG/%Y/%Y%m*COM.nc',0]]
 
     cinp.driver(occci_file,vars,start_yr = start_yr,end_yr = end_yr,lon = lon,lat = lat,fill_clim=False)
-
-# res = 0.25
-
-# start_yr = 1997
-# end_yr = 2023
-# files = ['argo_chla_southernocean','argo_chla_arctic']
+    c = Dataset(occci_file,'a')
+    c.variables['OC-CCI_chlor_a'].file_location = vars[0][2]
+    c.variables['OC-CCI_chlor_a_log10_rmsd'].file_location = vars[1][2]
+    c.variables['OSISAF_ice_conc'].file_location = vars[2][2]
+    c.close()
 
 def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     if plot:

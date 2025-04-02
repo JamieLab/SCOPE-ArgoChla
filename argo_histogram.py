@@ -43,7 +43,7 @@ ax2.set_ylabel('Profile Frequency')
 ax2.legend(['Southern Hemisphere','Northern Hemisphere'])
 
 ax4.hist(l2,bins=list(range(1,14)),color = ['#1A85FF','#D41159'])
-ax4.set_xticks(np.array(range(1,13,1))+0.5,list(range(1,13,1)))
+ax4.set_xticks(np.array(range(1,13,1))+0.5,['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])
 ax4.set_xlabel('Month')
 ax4.set_ylabel('Profile Frequency')
 ax.set_xlabel('Longitude ($^o$W)')

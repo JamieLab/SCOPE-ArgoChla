@@ -15,11 +15,11 @@ argo_loc = 'F:/Data/ARGO/data' # Local location to save files.
 # These are the latitude band (North first) to extract the Argo Chl-a data for...
 lat_bounds = [[-40,-90],[90,45]]
 output_files = ['argo_chla_southernocean','argo_chla_arctic']
-res = 0.25
+res = 1
 daystep = 1
 start_yr = 1997
 end_yr = 2023
-occci_file = 'netcdf/oc-cci_chlor_a_'+str(res)+'deg.nc'
+occci_file = 'E:/SCOPE/ARGO/netcdf/oc-cci_chlor_a_'+str(res)+'deg.nc'
 bathy_file_raw = f'F:/Data/Bathymetry/GEBCO_2023.nc'
 bathy_file = f'F:/Data/Bathymetry/{res}DEG_GEBCO_2023.nc'
 # ice_name = 'OSISAF_sea_ice_fraction'
@@ -34,14 +34,14 @@ Monthy runs
 #     lat_col = 'Latitude',lon_col = 'Longitude',chla_col ='Chl a [mg/m**3] (High Performance Liquid Chrom...)',format='.tab')
 # argo_average(res,start_yr,end_yr,['insitudb_chla_V3'],skiprows=28,sep='\t',dateti = True,datecol = 'Date/Time',dateformat='%Y-%m-%dT%H:%M',
 #     lat_col = 'Latitude',lon_col = 'Longitude',chla_col ='Chl a [mg/m**3] (Chlorophyll a, fluorometric o...)',format='.tab',extra='_fluoro')
-# chl_argo_relationship(res,start_yr,end_yr,output_files,occci_file,plot=True,area_wei=True,gebco_file=bathy_file_raw,gebco_out='F:/Data/Bathymetry',land_mask=True)
-oc_cci_fill(occci_file,bathy_file,daystep,res,reset = False,ice_name=ice_name)
+# chl_argo_relationship(res,start_yr,end_yr,output_files,occci_file,plot=True,area_wei=True,gebco_file=bathy_file_raw,gebco_out='F:/Data/Bathymetry',land_mask=False)
+oc_cci_fill(occci_file,bathy_file,daystep,res,reset = False,ice_name=ice_name,outloc ='E:/SCOPE/NN/Ford_et_al_SOM_chla/inputs/chla')
 timeseries_plotting(occci_file,bathy_file,[[-60,0],[-55,0],[-50,0],[-45,0]],output=f'plots/global_map_{str(res)}_deg.png')
 climatology_plotting(occci_file,bathy_file,[[-60,0],[-55,0],[-50,0],[-45,0]],output=f'plots/global_climatology_{str(res)}_deg.png')
 plot_flag(occci_file,output=f'plots/flag_pixels_{str(res)}_deg.png')
 plot_flag_l(occci_file,output=f'plots/flagl_pixels_{str(res)}_deg.png')
-plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg.nc',output=f'plots/insitu_verification_{str(res)}_deg.png')
-plot_chla_scatter(occci_file,f'netcdf/insitudb_chla_V3_{str(res)}deg_fluoro.nc',output=f'plots/insitu_verification_{str(res)}_deg_fluoro.png')
+plot_chla_scatter(occci_file,f'E:/SCOPE/ARGO/netcdf/insitudb_chla_V3_{str(res)}deg.nc',output=f'plots/insitu_verification_{str(res)}_deg.png')
+plot_chla_scatter(occci_file,f'E:/SCOPE/ARGO/netcdf/insitudb_chla_V3_{str(res)}deg_fluoro.nc',output=f'plots/insitu_verification_{str(res)}_deg_fluoro.png')
 
 # """
 # 8 day runs

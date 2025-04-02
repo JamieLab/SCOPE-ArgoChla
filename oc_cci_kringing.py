@@ -16,46 +16,12 @@ sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA
 
 import data_utils as du
 
-def save_chla(chla,flag,flag_l,lat,lon,time,out_loc,time_r):
-    # outp = Dataset(file,'w',format='NETCDF4_CLASSIC')
-    # outp.date_created = datetime.datetime.now().strftime(('%d/%m/%Y'))
-    # outp.created_by = 'Daniel J. Ford (d.ford@exeter.ac.uk)'
-    # outp.createDimension('lon',lon.shape[0])
-    # outp.createDimension('lat',lat.shape[0])
-    # outp.createDimension('time',len(time))
-    #
-    # sst_o = outp.createVariable('chl','f4',('lon','lat','time'),zlib=False)
-    # sst_o[:] = chla
-    # sst_o.units = 'log10(mgm-3)'
-    # sst_o.standard_name = 'Chlorophyll-a concentration'
-    #
-    # sst_o = outp.createVariable('flag','f4',('lon','lat','time'),zlib=False)
-    # sst_o[:] = flag
-    # sst_o.standard_name = 'Chlorophyll-a concentration flag'
-    #
-    # sst_o = outp.createVariable('flag_l','f4',('lon','lat','time'),zlib=False)
-    # sst_o[:] = flag_l
-    # sst_o.standard_name = 'Chlorophyll-a concentration flag for number of months used in Argo approach'
-    #
-    # lat_o = outp.createVariable('latitude','f4',('lat'))
-    # lat_o[:] = lat
-    # lat_o.units = 'Degrees'
-    # lat_o.standard_name = 'Latitude'
-    # lon_o = outp.createVariable('longitude','f4',('lon'))
-    # lon_o.units = 'Degrees'
-    # lon_o.standard_name = 'Longitude'
-    # lon_o[:] = lon
-    #
-    # lon_o = outp.createVariable('time','f4',('time'))
-    # lon_o.units = 'days since 1970-01-15'
-    # lon_o.standard_name = 'Time'
-    # lon_o[:] = time
-    # outp.close()
+def save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r):
     if outloc:
         for i in range(len(time)):
             d = datetime.datetime(int(time_r[i,0]),int(time_r[i,1]),15)
-            du.makefolder(os.path.join(out_loc,d.strftime('%Y')))
-            file_t = os.path.join(out_loc,d.strftime('%Y/%Y_%m_oc_cci_chla_filled.nc'))
+            du.makefolder(os.path.join(outloc,d.strftime('%Y')))
+            file_t = os.path.join(outloc,d.strftime('%Y/%Y_%m_oc_cci_chla_filled.nc'))
 
             outp = Dataset(file_t,'w',format='NETCDF4_CLASSIC')
             outp.date_created = datetime.datetime.now().strftime(('%d/%m/%Y'))
@@ -141,6 +107,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration'
 
+
         if 'chl_filled_unc' in c.variables.keys():
             c['chl_filled_unc'][:] = chla
         else:
@@ -148,6 +115,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             sst_o[:] = chla
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gapfilled Root-mean-square-difference of log10-transformed chlorophyll-a concentration in seawater.'
+
 
         if 'chl_flag' in c.variables.keys():
             c['chl_flag'][:] = chla
@@ -162,6 +130,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             sst_o = c.createVariable('chl_process','f4',('time'),zlib=False)
             sst_o[:] = np.zeros((cci[2]))
             sst_o.standard_name = 'Process indicator'
+            sst_o.processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
     c.close()
 
 
@@ -278,6 +247,10 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                 c.variables['chl_flag'][:,:,i] = np.transpose(flag)
                 c.variables['chl_process'][i] = 1
                 #c.sync()
+                c.close()
+            else:
+                c = Dataset(file,'a')
+                c.variables['chl_process'][i] = 1
                 c.close()
         else:
             print('Processing flag == 1')
@@ -435,16 +408,17 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         sst_o[:] = flag_l
         sst_o.standard_name = 'Chlorophyll-a concentration flag for number of months used in Argo approach'
         sst_o.comment = 'Negative indicates backwards; positive indicates forwards'
-    c.close()
 
-    #del chla, flag, unc, flag_l
+    c.close()
+    s = chla.shape
+    del chla, flag, unc, flag_l
 
     """
     """
 
     lon_g,lat_g = np.meshgrid(lon,lat)
-    for i in range(0,chla.shape[2]):
-        print('Timestep: ' + str(i) + ' of ' + str(chla.shape[2]))
+    for i in range(0,s[2]):
+        print('Timestep: ' + str(i) + ' of ' + str(s[2]))
         c = Dataset(file,'r')
         chl_process = c['chl_process'][i]
         if chl_process == 1:
@@ -493,7 +467,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                 unc_t[f] =field
                 c = Dataset(file,'a')
                 c.variables['chl_filled'][:,:,i] = np.transpose(cci_data)
-                c.variables['chl_filled_unc'][:,:,i] = np.transpose(cci_unc)
+                c.variables['chl_filled_unc'][:,:,i] = np.transpose(unc_t)
                 c.variables['chl_flag'][:,:,i] = np.transpose(flag_t)
                 c.variables['chl_process'][i] = 2
                 #c.sync()
@@ -502,15 +476,34 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             print('Processing != 1')
             c.close()
 
-    c = Dataset(file,'a')
-    c['chl_filled'][:] = chla
-    c['chl_flag'][:] = flag
-    c['chl_filled_unc'][:] = unc
+    c=Dataset(file,'a')
+    c.variables['chl_process'].processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
+    c.variables['chl_filled'].base_variable = 'Generated from: OC-CCI_chlor_a'
+    c.variables['chl_filled_unc'].base_variable = 'Generated from: OC-CCI_chlor_a_log10_rmsd'
+    c.variables['chl_flag'].flags = '1 = Land; 2 = OC-CCI observations; 3 = Cloud Kriging; 4 = Under sea ice; 5 = Southern Hemisphere backwards Argo relationship; 6 = Southern Hemisphere forwards Argo relationship; 7 = Southern Hemisphere backwards Argo relationship; 8 = Southern Hemisphere forwards Argo relationship; 9 = Final kriging (moderate sea ice zones)'
+    c.variables['flag_l'].links_to = 'Links to "chl_filled" and the flagging variable "chl_flag"'
+    c.variables['OC-CCI_chlor_a'].standard_name = 'mass_concentration_of_chlorophyll_a_in_sea_water'
+    c.variables['OC-CCI_chlor_a'].long_name = "Orginial Chlorophyll-a concentration in seawater (log-transformed), generated by as a blended combination of OCI, OCI2, OC2 and OCx algorithms, depending on water class memberships"
+    c.variables['OC-CCI_chlor_a'].units = 'log10(mg m-3)'
+
+    c.variables['OC-CCI_chlor_a_log10_rmsd'].long_name = "Orginial Root-mean-square-difference of log10-transformed chlorophyll-a concentration in seawater."
+    c.variables['OC-CCI_chlor_a_log10_rmsd'].units = 'log10(mg m-3)'
+
+    c.variables['OSISAF_ice_conc'].standard_name = "sea_ice_area_fraction"
+    c.variables['OSISAF_ice_conc'].units = "%"
+    c.variables['OSISAF_ice_conc'].long_name = "fully filtered concentration of sea ice using atmospheric correction of brightness temperatures and open water filters"
+
+    c.start_year = np.min(time_r[:,0])
+    c.end_year = np.max(time_r[:,0])
+    c.supporting_manuscript = 'Daniel J. Ford, Gemma Kulk, Shubha Sathyendranath, Jamie D. Shutler, Observation-based reconstruction of polar wintertime chlorophyll-a using satellite and Bio-Argo data (in prep)'
+    c.code_location = 'https://github.com/JamieLab/SCOPE-ArgoChla'
+    c.averaging_code = "https://github.com/JamieLab/OceanICU"
     c.close()
-    #
-    # # c = Dataset(file,'r')
-    # # chla = np.array(c['chl_filled'])
-    # # flag = np.array(c['chl_flag'])
-    # # flag_l = np.array(c['flag_l'])
-    # # c.close()
-    # # save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r)
+
+    if outloc:
+        c = Dataset(file,'r')
+        chla = np.array(c['chl_filled'])
+        flag = np.array(c['chl_flag'])
+        flag_l = np.array(c['flag_l'])
+        c.close()
+        save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r)

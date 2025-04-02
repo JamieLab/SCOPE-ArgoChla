@@ -35,16 +35,6 @@ def checkfileexist(file):
     else:
         return True
 
-
-# argo_file = 'F:/Data/ARGO/argo_bio-profile_index.txt' #File containing all the current bio-argo profiles (this needs to be downloaded periodically)
-# #ftp_loc = 'https://data-argo.ifremer.fr/dac/'
-#
-# argo_loc = 'F:/Data/ARGO/data' # Local location to save files.
-#
-# # These are the latitude band (North first) to extract the Argo Chl-a data for...
-# lat_bounds = [[-40,-90],[90,45]]
-# output_files = ['argo_chla_southernocean','argo_chla_arctic']
-
 def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False):
 
     ref = datetime.datetime(1950,1,1,0,0,0) # This is the reference time within the Argo files
