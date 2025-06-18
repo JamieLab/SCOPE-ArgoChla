@@ -39,7 +39,7 @@ c = np.array([-3,1.5])
 # print(f)
 fig = plt.figure(figsize=(14,14))
 gs = GridSpec(2,2, figure=fig, wspace=0.25,hspace=0.25,bottom=0.1,top=0.95,left=0.13,right=0.95)
-ax = fig.add_subplot(gs[0,0])
+ax = fig.add_subplot(gs[1,0])
 # chla_t = chla[:,f,:]
 # flags_t = flags[:,f,:]
 # chl_in = chl_in[:,f,:]
@@ -55,9 +55,9 @@ ax.set_xlim(c); ax.set_ylim(c);
 # ax.legend(loc=3)
 ax.set_xlabel('Wintertime in situ Chlorophyll-a (log$_{10}$(mg m$^{-3}$))')
 ax.set_ylabel('Wintertime gapfilled Chlorophyll-a (log$_{10}$(mg m$^{-3}$))')
-ax.text(0.03,0.95,f'(a)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
+ax.text(0.03,0.95,f'(c)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
 
-ax = fig.add_subplot(gs[1,0])
+ax = fig.add_subplot(gs[0,0])
 f = np.where(((flags == 7) | (flags == 8)) & (np.isnan(chl_in) == 0))
 ax.scatter(chl_in[f],chla[f],zorder=4,color='b',label='Northern Hemisphere',s=sz)
 stats = ws.unweighted_stats(chl_in[f],chla[f],'a')
@@ -71,7 +71,7 @@ ax.set_xlim(c); ax.set_ylim(c);
 # ax.legend(loc=3)
 ax.set_xlabel('Wintertime in situ Chlorophyll-a (log$_{10}$(mg m$^{-3}$))')
 ax.set_ylabel('Wintertime gapfilled Chlorophyll-a (log$_{10}$(mg m$^{-3}$))')
-ax.text(0.03,0.95,f'(c)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
+ax.text(0.03,0.95,f'(a)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
 
 file_chl = f'E:/SCOPE/Argo/netcdf/insitudb_chla_V3_{str(res)}deg_fluoro.nc'
 c = Dataset(file_occci,'r')
@@ -84,7 +84,7 @@ c = Dataset(file_chl,'r')
 chl_in = np.array(c['chl'])
 c.close()
 c = np.array([-3,1.5])
-ax = fig.add_subplot(gs[0,1])
+ax = fig.add_subplot(gs[1,1])
 # chla_t = chla[:,f,:]
 # flags_t = flags[:,f,:]
 # chl_in = chl_in[:,f,:]
@@ -100,8 +100,8 @@ ax.set_xlim(c); ax.set_ylim(c);
 # ax.legend(loc=3)
 ax.set_xlabel('Wintertime in situ Chlorophyll-a (log$_{10}$(mgm$^{-3}$))')
 ax.set_ylabel('Wintertime gapfilled Chlorophyll-a (log$_{10}$(mgm$^{-3}$))')
-ax.text(0.03,0.95,f'(b)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
-ax = fig.add_subplot(gs[1,1])
+ax.text(0.03,0.95,f'(d)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
+ax = fig.add_subplot(gs[0,1])
 f = np.where(((flags == 7) | (flags == 8)) & (np.isnan(chl_in) == 0))
 ax.scatter(chl_in[f],chla[f],zorder=4,color='b',label='Northern Hemisphere',s=sz)
 stats = ws.unweighted_stats(chl_in[f],chla[f],'a')
@@ -115,6 +115,6 @@ ax.set_xlim(c); ax.set_ylim(c);
 # ax.legend(loc=3)
 ax.set_xlabel('Wintertime in situ Chlorophyll-a (log$_{10}$(mgm$^{-3}$))')
 ax.set_ylabel('Wintertime gapfilled Chlorophyll-a (log$_{10}$(mgm$^{-3}$))')
-ax.text(0.03,0.95,f'(d)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
+ax.text(0.03,0.95,f'(b)',transform=ax.transAxes,va='top',fontweight='bold',fontsize = 25)
 
 fig.savefig(output,dpi=300)

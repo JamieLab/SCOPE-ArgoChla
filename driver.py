@@ -35,7 +35,7 @@ Monthy runs
 # argo_average(res,start_yr,end_yr,['insitudb_chla_V3'],skiprows=28,sep='\t',dateti = True,datecol = 'Date/Time',dateformat='%Y-%m-%dT%H:%M',
 #     lat_col = 'Latitude',lon_col = 'Longitude',chla_col ='Chl a [mg/m**3] (Chlorophyll a, fluorometric o...)',format='.tab',extra='_fluoro')
 # chl_argo_relationship(res,start_yr,end_yr,output_files,occci_file,plot=True,area_wei=True,gebco_file=bathy_file_raw,gebco_out='F:/Data/Bathymetry',land_mask=False)
-oc_cci_fill(occci_file,bathy_file,daystep,res,reset = False,ice_name=ice_name,outloc ='E:/SCOPE/NN/Ford_et_al_SOM_chla/inputs/chla')
+oc_cci_fill(occci_file,bathy_file,daystep,res,reset = False,ice_name=ice_name) # ,outloc ='E:/SCOPE/NN/Ford_et_al_SOM_chla/inputs/chla')
 timeseries_plotting(occci_file,bathy_file,[[-60,0],[-55,0],[-50,0],[-45,0]],output=f'plots/global_map_{str(res)}_deg.png')
 climatology_plotting(occci_file,bathy_file,[[-60,0],[-55,0],[-50,0],[-45,0]],output=f'plots/global_climatology_{str(res)}_deg.png')
 plot_flag(occci_file,output=f'plots/flag_pixels_{str(res)}_deg.png')
