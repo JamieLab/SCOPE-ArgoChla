@@ -15,14 +15,15 @@ import data_utils as du
 
 # files = ['argo_chla_southernocean','argo_chla_arctic']
 def argo_average(res,start_yr,end_yr,files,year_col = '# Year',month_col = 'Month',lat_col = 'Latitude (deg N)',lon_col = 'Longitude (deg W)',chla_col = 'chlorphyll-a (mgm-3)'
-    ,skiprows=0,sep = ',',format = '.csv',dateti = False,datecol = '',dateformat=False,extra=''):
+    ,skiprows=0,sep = ',',format = '.csv',dateti = False,datecol = '',dateformat=False,extra='',out_loc = ''):
     lon,lat = du.reg_grid(lat=res,lon=res)
     res_h = res/2
     t_len = (end_yr-start_yr+1)*12
     for file in files:
-        out_file = 'netcdf/'+file+'_'+str(res)+'deg'+extra+'.nc'
+        file2 = os.path.split(file)
+        out_file = os.path.join(out_loc,'netcdf',file2[1]+'_'+str(res)+'deg'+extra+'.nc')
         # data = np.genfromtxt('csv/'+file+'.csv', delimiter=',')
-        data = pd.read_table('csv/'+file+format,sep = sep,skiprows=skiprows)
+        data = pd.read_table(file+format,sep = sep,skiprows=skiprows)
         if dateti:
             time = data[datecol]
             temp = np.zeros((np.array(time).size,3)); temp[:] = np.nan

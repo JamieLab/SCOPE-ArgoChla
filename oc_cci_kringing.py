@@ -67,7 +67,7 @@ def unc_montecarlo(chla,chla_unc,per,per_unc,ens = 1000):
     out = np.std(fun)
     return out
 
-def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,ref_step = 30.5,outloc = False,ice = True):
+def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,ref_step = 30.5,out_loc = False,single_out_loc = False,ice = True):
     ref = datetime.datetime(1970,1,15)
 
     c = Dataset(bathy_file,'r')
@@ -277,19 +277,19 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     flag_l = np.zeros((chla.shape))
 
     files = ['argo_chla_southernocean','argo_chla_arctic']
-    argo_b_data = np.loadtxt('relationships/backwards_'+files[0]+'_'+str(res)+'deg.csv',delimiter=',',skiprows=1)
+    argo_b_data = np.loadtxt(os.path.join(out_loc,'relationships',f'backwards_'+files[0]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
     argo_b = scipy.interpolate.interp1d(argo_b_data[:,0],argo_b_data[:,1])
     argo_b_unc = scipy.interpolate.interp1d(argo_b_data[:,0],argo_b_data[:,2])
 
-    argo_f_data = np.loadtxt('relationships/forwards_'+files[0]+'_'+str(res)+'deg.csv',delimiter=',',skiprows=1)
+    argo_f_data = np.loadtxt(os.path.join(out_loc,'relationships',f'forwards_'+files[0]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
     argo_f = scipy.interpolate.interp1d(argo_f_data[:,0],argo_f_data[:,1])
     argo_f_unc = scipy.interpolate.interp1d(argo_f_data[:,0],argo_f_data[:,2])
 
-    argo_b_arctic_data = np.loadtxt('relationships/backwards_'+files[1]+'_'+str(res)+'deg.csv',delimiter=',',skiprows=1)
+    argo_b_arctic_data = np.loadtxt(os.path.join(out_loc,'relationships',f'backwards_'+files[1]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
     argo_b_arctic = scipy.interpolate.interp1d(argo_b_arctic_data[:,0],argo_b_arctic_data[:,1])
     argo_b_arctic_unc = scipy.interpolate.interp1d(argo_b_arctic_data[:,0],argo_b_arctic_data[:,2])
 
-    argo_f_arctic_data = np.loadtxt('relationships/forwards_'+files[1]+'_'+str(res)+'deg.csv',delimiter=',',skiprows=1)
+    argo_f_arctic_data = np.loadtxt(os.path.join(out_loc,'relationships',f'forwards_'+files[1]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
     argo_f_arctic = scipy.interpolate.interp1d(argo_f_arctic_data[:,0],argo_f_arctic_data[:,1])
     argo_f_arctic_unc = scipy.interpolate.interp1d(argo_f_arctic_data[:,0],argo_f_arctic_data[:,2])
     """
@@ -500,10 +500,29 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     c.averaging_code = "https://github.com/JamieLab/OceanICU"
     c.close()
 
-    if outloc:
+    if single_out_loc:
         c = Dataset(file,'r')
         chla = np.array(c['chl_filled'])
         flag = np.array(c['chl_flag'])
         flag_l = np.array(c['flag_l'])
         c.close()
-        save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r)
+        save_chla(chla,flag,flag_l,lat,lon,time,single_out_loc,time_r)
+
+def output_single_chla(file,outloc):
+    ref = datetime.datetime(1970,1,15)
+    du.makefolder(outloc)
+    c = Dataset(file,'r')
+    time = np.array(c.variables['time'])
+    chla = np.array(c.variables['chl_filled'])
+    flag = np.array(c.variables['chl_flag'])
+    flag_l = np.array(c.variables['flag_l'])
+    lat = np.array(c.variables['latitude'])
+    lon = np.array(c.variables['longitude'])
+    c.close()
+
+    time_r = np.zeros((len(time),2))
+    for i in range(0,len(time)):
+        time_r[i,0] = (ref + datetime.timedelta(days=int(time[i]))).year
+        time_r[i,1] = (ref + datetime.timedelta(days=int(time[i]))).month
+
+    save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r)

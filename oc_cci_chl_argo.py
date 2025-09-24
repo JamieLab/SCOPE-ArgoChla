@@ -18,15 +18,18 @@ let = ['a','b','c','d','e','f','g']
 
 def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     import CCI_OC_SPATIAL_AV as OC
-    OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
-    import Data_Loading.gebco_resample as ge
-    ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2023.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc')
+    # OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+    # import Data_Loading.gebco_resample as ge
+    # ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2023.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc')
 
-    # from Data_Loading.OSISAF_download import OSISAF_spatial_average
-    # from Data_Loading.OSISAF_download import OSISAF_merge_hemisphere
-    # OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'NH')
-    # OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'SH')
-    # OSISAF_merge_hemisphere('F:/Data/OSISAF/monthly/'+str(res)+'DEG', 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
+    import Data_Loading.ESA_CCI_land as landcci
+    landcci.generate_land_cci('E:/Data/Land-CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.nc','E:/Data/Land-CCI/ESACCI-LC-L4-WB-Ocean-Map-150m-P13Y-2000-v4.0.tif',lon,lat,gebco_out)
+
+    from Data_Loading.OSISAF_download import OSISAF_spatial_average, OSISAF_merge_hemisphere, OSISAF_monthly_av
+    OSISAF_monthly_av('F:/Data/OSISAF',start_yr=start_yr,end_yr=end_yr)
+    OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'NH')
+    OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'SH')
+    OSISAF_merge_hemisphere('F:/Data/OSISAF/monthly/'+str(res)+'DEG', 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
 
     import construct_input_netcdf as cinp
     vars = [['OC-CCI','chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
@@ -40,7 +43,7 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_f
     c.variables['OSISAF_ice_conc'].file_location = vars[2][2]
     c.close()
 
-def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
+def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False,netcdf_loc = 'E:/SCOPE/Argo'):
     if plot:
         widths = 0.75
         font = {'weight' : 'normal',
@@ -56,8 +59,8 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
     generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
     for file in files:
         app = file + '_' + str(res)
-
-        argo_file = 'netcdf/'+file+'_'+str(res)+'deg.nc'
+        file2 = os.path.split(file)
+        argo_file = os.path.join(netcdf_loc,'netcdf/'+file2[1]+'_'+str(res)+'deg.nc')
 
 
         c = Dataset(argo_file,'r')
@@ -122,7 +125,10 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
             axs[p].text(0.93,0.95,f'('+let[p]+')',transform=axs[p].transAxes,va='top',fontweight='bold',fontsize = 25)
             p=p+1
         # fig.savefig('plots/backwards_'+file+'_'+str(res)+'deg.png',dpi=300)
-        np.savetxt('relationships/backwards_'+file+'_'+str(res)+'deg.csv',meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
+        np.savetxt(os.path.join(netcdf_loc,'relationships',f'backwards_'+file2[1]+'_'+str(res)+'deg.csv'),meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
+        # np.savetxt('relationships/median_'+file+'_'+str(res)+'deg.csv',np.array(med),delimiter=',',header='median')
+        print(file)
+        print('Bias Correction: ' + str(med))
 
         # fig, ax = plt.subplots(1,1,figsize=(7,7))
         # unit = 'log$_{10}$(mgm$^{-3}$)'
@@ -182,7 +188,7 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
             meds[i,1] = np.nanmedian(vals)
             meds[i,2] = np.nanmedian(np.abs(vals - meds[i,1])) * 1.4826 # Converting median absolute deviation to a robust standard deviation equivalent
             meds[i,3] = len(g[0])
-            print(meds[i,2])
+            # print(meds[i,2])
         if plot:
             axs[p].set_ylim([-100,100])
             axs[p].text(0.93,0.97,f'('+let[p]+')',transform=axs[p].transAxes,va='top',fontweight='bold',fontsize = 25)
@@ -190,7 +196,7 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
             p=p+1
 
 
-        np.savetxt('relationships/forwards_'+file+'_'+str(res)+'deg.csv',meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
+        np.savetxt(os.path.join(netcdf_loc,'relationships',f'forwards_'+file2[1]+'_'+str(res)+'deg.csv'),meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
         #plt.show()
     if plot:
-        fig.savefig('plots/relationships_'+str(res)+'deg.png',dpi=300)
+        fig.savefig(os.path.join(netcdf_loc,'plots',f'relationships_'+str(res)+'deg.png'),dpi=300)

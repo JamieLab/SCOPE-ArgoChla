@@ -35,7 +35,7 @@ def checkfileexist(file):
     else:
         return True
 
-def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False):
+def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_loc=''):
 
     ref = datetime.datetime(1950,1,1,0,0,0) # This is the reference time within the Argo files
     ftp_loc = 'ftp.ifremer.fr' # FTP Location
@@ -130,7 +130,7 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False):
 
         #print(chl)
         chl = np.array(chl)
-        np.savetxt('csv/'+output_files[k]+".csv", chl, delimiter=",",header='Year,Month,Day,Latitude (deg N),Longitude (deg W),chlorphyll-a (mgm-3),Chlorophyll-a quality flag')
+        np.savetxt(os.path.join(out_loc,'csv',output_files[k]+".csv"), chl, delimiter=",",header='Year,Month,Day,Latitude (deg N),Longitude (deg W),chlorphyll-a (mgm-3),Chlorophyll-a quality flag')
         if plot:
             worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
 
@@ -146,4 +146,4 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False):
             plt.hist(chl[:,1])
             ax = fig.add_subplot(gs[1, 2])
             plt.hist(np.log10(chl[:,5]),np.arange(-3.5,1,0.05))
-            fig.savefig('plots/'+output_files[k]+'.jpg',dpi=300)
+            fig.savefig(os.path.join(out_loc,plots,output_files[k]+'.jpg'),dpi=300)
