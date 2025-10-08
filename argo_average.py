@@ -15,7 +15,7 @@ import data_utils as du
 
 # files = ['argo_chla_southernocean','argo_chla_arctic']
 def argo_average(res,start_yr,end_yr,files,year_col = '# Year',month_col = 'Month',lat_col = 'Latitude (deg N)',lon_col = 'Longitude (deg W)',chla_col = 'chlorphyll-a (mgm-3)'
-    ,skiprows=0,sep = ',',format = '.csv',dateti = False,datecol = '',dateformat=False,extra='',out_loc = ''):
+    ,skiprows=0,sep = ',',format = '.csv',dateti = False,datecol = '',dateformat=False,extra='',out_loc = '',quality_flag_col_include=False,quality_flag_col='',quality_flag_val=0,min_val_apply=False,min_val = 0.01):
     lon,lat = du.reg_grid(lat=res,lon=res)
     res_h = res/2
     t_len = (end_yr-start_yr+1)*12
@@ -24,6 +24,7 @@ def argo_average(res,start_yr,end_yr,files,year_col = '# Year',month_col = 'Mont
         out_file = os.path.join(out_loc,'netcdf',file2[1]+'_'+str(res)+'deg'+extra+'.nc')
         # data = np.genfromtxt('csv/'+file+'.csv', delimiter=',')
         data = pd.read_table(file+format,sep = sep,skiprows=skiprows)
+        print(data)
         if dateti:
             time = data[datecol]
             temp = np.zeros((np.array(time).size,3)); temp[:] = np.nan
@@ -35,7 +36,20 @@ def argo_average(res,start_yr,end_yr,files,year_col = '# Year',month_col = 'Mont
             data['# Year'] = temp[:,0]
             data['Month'] = temp[:,1]
             data['Day'] = temp[:,2]
-        data = np.transpose(np.vstack((np.array(data[year_col]),np.array(data[month_col]),np.array(data[lat_col]),np.array(data[lon_col]),np.array(data[chla_col]))))
+        print(len(data))
+        if quality_flag_col_include:
+            data = np.transpose(np.vstack((np.array(data[year_col]),np.array(data[month_col]),np.array(data[lat_col]),np.array(data[lon_col]),np.array(data[chla_col]),np.array(data[quality_flag_col]) )))
+            f = np.where(np.isnan(data[:,-1]) == 1)[0]
+            data[f,-1] = 0
+
+            f = np.where(data[:,-1] == quality_flag_val)[0]
+            data = data[f,:]
+        else:
+            data = np.transpose(np.vstack((np.array(data[year_col]),np.array(data[month_col]),np.array(data[lat_col]),np.array(data[lon_col]),np.array(data[chla_col]))))
+        if min_val_apply:
+            f = np.where(data[:,4] > min_val)[0]
+            data = data[f,:]
+        print(len(data))
 
         chl = np.zeros((len(lon),len(lat),t_len))
         chl[:] = np.nan
@@ -50,6 +64,7 @@ def argo_average(res,start_yr,end_yr,files,year_col = '# Year',month_col = 'Mont
         while yr<=end_yr:
             print(str(yr) + ' - ' + str(mon))
             f = np.where((data[:,0] == yr) & (data[:,1] == mon))[0]
+            print(len(f))
             if f.size!=0:
                 print('Not Zeros')
                 for j in range(0,len(lat)):

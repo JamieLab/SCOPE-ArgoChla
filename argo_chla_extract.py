@@ -35,7 +35,7 @@ def checkfileexist(file):
     else:
         return True
 
-def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_loc=''):
+def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_loc='', start_yr = 1997,end_yr=2024):
 
     ref = datetime.datetime(1950,1,1,0,0,0) # This is the reference time within the Argo files
     ftp_loc = 'ftp.ifremer.fr' # FTP Location
@@ -86,6 +86,7 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
 
                     depth = np.array(c['PRES'])
                     ch = np.array(c['CHLA_ADJUSTED']).astype(np.float64)
+                    ch_unc = np.array(c['CHLA_ADJUSTED_ERROR']).astype(np.float64)
                     qf = np.array(c['CHLA_ADJUSTED_QC'])
                     qf2 = np.zeros(qf.shape)
                     #print(qf2.shape)
@@ -107,6 +108,7 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
                     if len(f)>0:
                         print(f)
                         ch = ch[f,:]
+                        ch_unc = ch_unc[f,:]
                         depth = depth[f,:]
                         qf2 = qf2[f,:]
                         lat = np.array(c['LATITUDE'])[f]
@@ -116,13 +118,31 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
                         flo_date = ref + datetime.timedelta(days=int(date))
                         c.close()
                         #ch[ch>30] = np.nan
+                        g = np.where(np.isnan(ch) == 0)
+                        ch = ch[g]
+                        ch_unc=ch_unc[g]
+                        depth = depth[g]
+                        qf2 = qf2[g]
 
-                        f = np.where(depth < 20)
-                        ch = np.nanmean(ch[f])
-                        qf2 = np.nanmean(qf2[f])
-                        print([flo_date.year,flo_date.month,flo_date.day,lat[0],lon[0],ch,qf2])
-                        if (flo_date.year<2024) & (lat <90) & (lon < 180) & (np.isnan(ch) == 0) & (ch>0.001) :
-                            chl.append([flo_date.year,flo_date.month,flo_date.day,lat[0],lon[0],ch,qf2])
+                        if depth[0] < 10:
+                            surf_chla = ch[0]
+                            kd = 0.0166 + 0.077298 * (surf_chla)**0.67155
+                            kd = 1/kd
+                            print('Surface Chla = ' + str(surf_chla))
+                            print('Surface Chla Depth = ' + str(depth[0]))
+                            print('Optical depth = '+str(kd))
+                            f = np.where(depth < kd)
+                            ch = 10**np.nanmean(np.log10(ch[f]))
+                            ch_unc = 10**np.nanmean(np.log10(ch_unc[f]))
+                            qf2 = np.nanmean(qf2[f])
+                            print([flo_date.year,flo_date.month,flo_date.day,lat[0],lon[0],ch,qf2,kd,len(f[0]),ch_unc])
+                            if (flo_date.year <=end_yr)& (lat <90) & (lon < 180) & (np.isnan(ch) == 0) & (ch>0.014): #Lower limit of chl-a from Long et al. 2024 (https://doi.org/10.1038/s43247-024-01762-4). "The lower limit is twice the factory-specified sensitivity of 0.007 mg m−3."
+                                print('Appended')
+                                chl.append([flo_date.year,flo_date.month,flo_date.day,lat[0],lon[0],ch,qf2,kd,len(f[0]),ch_unc])
+                            else:
+                                print('Outside specification')
+                        else:
+                            print('Chlorophyll-a "surface" too deep')
                     else:
                         c.close()
             else:
@@ -130,7 +150,7 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
 
         #print(chl)
         chl = np.array(chl)
-        np.savetxt(os.path.join(out_loc,'csv',output_files[k]+".csv"), chl, delimiter=",",header='Year,Month,Day,Latitude (deg N),Longitude (deg W),chlorphyll-a (mgm-3),Chlorophyll-a quality flag')
+        np.savetxt(os.path.join(out_loc,'csv',output_files[k]+".csv"), chl, delimiter=",",header='Year,Month,Day,Latitude (deg N),Longitude (deg W),chlorphyll-a (mgm-3),Chlorophyll-a quality flag,Optical_Depth (m),Number of BGC chl-a depths,chlorophyll-a uncertainty (mgm-3)')
         if plot:
             worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
 

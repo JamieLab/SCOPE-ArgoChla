@@ -14,7 +14,7 @@ import sys
 import weight_stats as ws
 import data_utils as du
 
-let = ['a','b','c','d','e','f','g']
+let = ['a','b','c','d','e','f','g','h','i','j']
 
 def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     import CCI_OC_SPATIAL_AV as OC
@@ -57,6 +57,9 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         p=0
     lon,lat = du.reg_grid(lat=res,lon=res)
     generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+    long,latg = np.meshgrid(lon,lat)
+    long = np.transpose(long)
+    latg = np.transpose(latg)
     for file in files:
         app = file + '_' + str(res)
         file2 = os.path.split(file)
@@ -65,7 +68,7 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
 
         c = Dataset(argo_file,'r')
         argo = 10**np.array(c['chl'])
-        argo[argo<0.005] = np.nan
+        # argo[argo<0.005] = np.nan
         c.close()
 
         c = Dataset(occci_file,'r')
@@ -73,10 +76,7 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         time = np.array(c['time'])
         c.close()
 
-        # f = np.where(lat >= 40)[0]
-        # argo = argo[:,f,:]
-        # occci = occci[:,f,:]
-        # lat = lat[f]
+
         print(argo.shape)
         print(occci.shape)
 
@@ -87,6 +87,8 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         arg = []
         oc = []
         dif = []
+        latgg = []
+        longg = []
         for i in range(0,len(f[0])):
             l = 0
             t = 0
@@ -96,25 +98,30 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
                     arg.append(argo[f[0][i],f[1][i],f[2][i]])
                     oc.append(oct)
                     dif.append(l)
+                    longg.append(long[f[0][i],f[1][i]])
+                    latgg.append(latg[f[0][i],f[1][i]])
                     t = 1
                 else:
                     l = l+1
                 if l == lags+1:
                     t=1
-        arg = np.array(arg); oc = np.array(oc); dif = np.array(dif)
+        arg = np.array(arg); oc = np.array(oc); dif = np.array(dif); latgg = np.array(latgg); longg = np.array(longg)
         # fig = plt.figure(figsize=(18,7))
 
         meds = np.zeros((lags+1,4))
         for i in range(0,lags+1):
             g = np.where((dif == i))
-            vals = (np.log10(arg[g])-np.log10(oc[g]))
+            print(len(g[0]))
+
             if i == 0:
+                vals = arg[g] / oc[g]
                 med = np.nanmedian(vals)
 
-            vals = (10**((np.log10(arg[g])-med)) -oc[g]) / oc[g]
+            vals = ((arg[g]/med) -oc[g]) / oc[g]
 
             if plot:
-                axs[p].boxplot(vals*100,positions=[i],widths=widths,labels = [f'{i} \n N = {len(g[0])} \n Med = {str(int(round(np.nanmedian(vals*100),0)))} '])
+                if len(g[0]) != 0:
+                    axs[p].boxplot(vals*100,positions=[i],widths=widths,labels = [f'{i} \n N = {len(g[0])} \n Med = {str(int(round(np.nanmedian(vals*100),0)))} '])
             meds[i,0] = i
             meds[i,1] = np.nanmedian(vals)
             meds[i,2] = np.nanmedian(np.abs(vals - meds[i,1])) * 1.4826 # Converting median absolute deviation to a robust standard deviation equivalent
@@ -126,6 +133,8 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
             p=p+1
         # fig.savefig('plots/backwards_'+file+'_'+str(res)+'deg.png',dpi=300)
         np.savetxt(os.path.join(netcdf_loc,'relationships',f'backwards_'+file2[1]+'_'+str(res)+'deg.csv'),meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
+        output_data = np.transpose(np.vstack((arg/med,oc,dif,latgg,longg)))
+        np.savetxt(os.path.join(netcdf_loc,'relationships',f'backwards_'+file2[1]+'_'+str(res)+'deg_underlyingdata.csv'),output_data,delimiter=',',header='Argo_chl-a,OCCCI_chl-a,time_lag_difference,latitude,longitude')
         # np.savetxt('relationships/median_'+file+'_'+str(res)+'deg.csv',np.array(med),delimiter=',',header='median')
         print(file)
         print('Bias Correction: ' + str(med))
@@ -155,6 +164,8 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         arg = []
         oc = []
         dif = []
+        latgg = []
+        longg = []
         for i in range(0,len(f[0])):
             l = 0
             t = 0
@@ -167,12 +178,14 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
                         arg.append(argo[f[0][i],f[1][i],f[2][i]])
                         oc.append(oct)
                         dif.append(l)
+                        longg.append(long[f[0][i],f[1][i]])
+                        latgg.append(latg[f[0][i],f[1][i]])
                         t = 1
                     else:
                         l = l+1
                     if l == lags+1:
                         t=1
-        arg = np.array(arg); oc = np.array(oc); dif = np.array(dif)
+        arg = np.array(arg); oc = np.array(oc); dif = np.array(dif); latgg = np.array(latgg); longg = np.array(longg)
         # if plot:
         # fig = plt.figure(figsize=(18,7))
         meds = np.zeros((lags+1,4))
@@ -181,9 +194,10 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
             # vals = (arg[g]-oc[g])/((oc[g]))
             # if i == 0:
             #     med = np.nanmedian(vals)
-            vals = (10**((np.log10(arg[g])-med)) -oc[g]) / oc[g]
+            vals = ((arg[g]/med) -oc[g]) / oc[g]
             if plot:
-                axs[p].boxplot(vals*100,positions=[i],widths=widths,labels = [f'{i} \n N = {len(g[0])} \n Med = {str(int(round(np.nanmedian(vals*100),0)))} '])
+                if len(g[0]) != 0:
+                    axs[p].boxplot(vals*100,positions=[i],widths=widths,labels = [f'{i} \n N = {len(g[0])} \n Med = {str(int(round(np.nanmedian(vals*100),0)))} '])
             meds[i,0] = i
             meds[i,1] = np.nanmedian(vals)
             meds[i,2] = np.nanmedian(np.abs(vals - meds[i,1])) * 1.4826 # Converting median absolute deviation to a robust standard deviation equivalent
@@ -197,6 +211,65 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
 
 
         np.savetxt(os.path.join(netcdf_loc,'relationships',f'forwards_'+file2[1]+'_'+str(res)+'deg.csv'),meds,delimiter=',',header='month_diff,% difference,% difference uncertainty,number_samples')
+        output_data = np.transpose(np.vstack((arg/med,oc,dif,latgg,longg)))
+        np.savetxt(os.path.join(netcdf_loc,'relationships',f'forwards_'+file2[1]+'_'+str(res)+'deg_underlyingdata.csv'),output_data,delimiter=',',header='Argo_chl-a,OCCCI_chl-a,time_lag_difference,latitude,longitude')
         #plt.show()
     if plot:
         fig.savefig(os.path.join(netcdf_loc,'plots',f'relationships_'+str(res)+'deg.png'),dpi=300)
+
+def plot_spatial_relationship(res,files,lags = 9,netcdf_loc = 'E:/SCOPE/Argo'):
+    worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+    cmap = cmocean.cm.balance
+    cmap = cmocean.tools.crop_by_percent(cmap, 10, which='both', N=None)
+    ##Forwards - Spring
+    font = {'weight' : 'normal',
+            'size'   :22}
+    matplotlib.rc('font', **font)
+    fig = plt.figure(figsize=(28,5*7))
+    gs = GridSpec(5,2, figure=fig, wspace=0.1,hspace=0.2,bottom=0.05,top=0.95,left=0.03,right=0.92)
+    axs = [[fig.add_subplot(gs[i, j]) for j in range(2)] for i in range(5)]
+    flatList = [element for innerList in axs for element in innerList]
+    axs = flatList
+    cbar = fig.add_axes([0.92,0.3,0.01,0.4])
+    for file in files:
+        file2 = os.path.split(file)
+        data = np.loadtxt(os.path.join(netcdf_loc,'relationships',f'forwards_'+file2[1]+'_'+str(res)+'deg_underlyingdata.csv'),delimiter=',',skiprows=1)
+        print(data.shape)
+        for i in range(lags+1):
+            print(i)
+            f = np.where(data[:,2] == i)[0]
+            a = axs[i].scatter(data[f,4],data[f,3],c=((data[f,0] - data[f,1])/data[f,1])*100,vmin=-100,vmax=100,cmap=cmap)
+            worldmap.plot(ax=axs[i],color='lightgrey')
+            axs[i].set_title('Month lag ' + str(i))
+            axs[i].text(0.93,0.97,f'('+let[i]+')',transform=axs[i].transAxes,va='top',fontweight='bold',fontsize = 25)
+    cba = fig.colorbar(a,cax=cbar)
+    cba.set_label('Percentage difference to OC-CCI chl-a')
+    fig.savefig(os.path.join(netcdf_loc,'plots',f'spatial_fowards_difference_'+str(res)+'deg.png'))
+    plt.close(fig)
+
+    ##Backwards - Autumn
+
+    font = {'weight' : 'normal',
+            'size'   :22}
+    matplotlib.rc('font', **font)
+    fig = plt.figure(figsize=(28,5*7))
+    gs = GridSpec(5,2, figure=fig, wspace=0.1,hspace=0.2,bottom=0.05,top=0.95,left=0.03,right=0.92)
+    axs = [[fig.add_subplot(gs[i, j]) for j in range(2)] for i in range(5)]
+    flatList = [element for innerList in axs for element in innerList]
+    axs = flatList
+    cbar = fig.add_axes([0.92,0.3,0.01,0.4])
+    for file in files:
+        file2 = os.path.split(file)
+        data = np.loadtxt(os.path.join(netcdf_loc,'relationships',f'backwards_'+file2[1]+'_'+str(res)+'deg_underlyingdata.csv'),delimiter=',',skiprows=1)
+        print(data.shape)
+        for i in range(lags+1):
+            print(i)
+            f = np.where(data[:,2] == i)[0]
+            a = axs[i].scatter(data[f,4],data[f,3],c=((data[f,0] - data[f,1])/data[f,1])*100,vmin=-100,vmax=100,cmap=cmap)
+            worldmap.plot(ax=axs[i],color='lightgrey')
+            axs[i].set_title('Month lag ' + str(i))
+            axs[i].text(0.93,0.97,f'('+let[i]+')',transform=axs[i].transAxes,va='top',fontweight='bold',fontsize = 25)
+    cba = fig.colorbar(a,cax=cbar)
+    cba.set_label('Percentage difference to OC-CCI chl-a')
+    fig.savefig(os.path.join(netcdf_loc,'plots',f'spatial_backwards_difference_'+str(res)+'deg.png'))
+    plt.close(fig)

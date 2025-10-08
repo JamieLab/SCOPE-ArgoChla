@@ -10,6 +10,9 @@ import datetime
 import sys
 import skgstat as skg
 import scipy.interpolate
+import geopandas as gpd
+import matplotlib.colors as colors
+import cmocean
 
 sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU')
 sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU\Data_Loading')
@@ -67,7 +70,7 @@ def unc_montecarlo(chla,chla_unc,per,per_unc,ens = 1000):
     out = np.std(fun)
     return out
 
-def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,ref_step = 30.5,out_loc = False,single_out_loc = False,ice = True):
+def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,ref_step = 30.5,out_loc = False,single_out_loc = False,ice = True,plot_debug=True,plot_debug_loc=''):
     ref = datetime.datetime(1970,1,15)
 
     c = Dataset(bathy_file,'r')
@@ -177,7 +180,20 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                     plt.plot(lat,total)
                     plt.plot([-90,90],[0.1,0.1],'k--')
                     plt.show()
-                f = np.where(total>0.1)[0]
+                f = np.where(total>0.2)[0]
+
+                if plot_debug:
+                    du.makefolder(plot_debug_loc)
+                    worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                    fig, ax = plt.subplots(1,1,figsize=(14,7))
+                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                    ax.plot([lon[0],lon[-1]],[lat[f[0]],lat[f[0]]],'b-',linewidth=2)
+                    ax.plot([lon[0],lon[-1]],[lat[f[-1]],lat[f[-1]]],'b-',linewidth=2)
+                    worldmap.plot(ax=ax,color='lightgrey')
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    fig.savefig(os.path.join(plot_debug_loc,'Lat_dependency_Timestep_'+str(i)+'.png'),dpi=300)
+                    plt.close(fig)
 
                 gp = [f[0],f[-1]]
                 print(gp)
@@ -197,18 +213,30 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                 lon_g,lat_g = np.meshgrid(lon,lat_t)
                 print(lon_g.shape)
                 print(lat_g.shape)
-                f = np.where((np.isnan(cci_data_t)==0) & (ocean_t > 0))
-                print(len(f[0]))
-                l =int(cci[1]*0.06)
-                vlon = np.ravel(lon_g[f])[0::l]
-                vlat = np.ravel(lat_g[f])[0::l]
-                #
-                vchl = np.ravel(cci_data_t[f])
-                vunc = np.ravel(cci_unc_t[f])
-                print(vchl.size)
-                vchl = vchl[0::l]
-                vunc = vunc[0::l]
-                print(vchl.size)
+                #f = np.where((ocean_t > 0))
+                #print(len(f[0]))
+                l =int(cci[1]*0.04)
+                vlon = np.ravel(lon_g)[0::l]
+                vlat = np.ravel(lat_g)[0::l]
+
+                vchl = np.ravel(cci_data_t)[0::l]
+                vunc = np.ravel(cci_unc_t)[0::l]
+
+                f = np.where((np.isnan(vchl) == 0) & (np.isnan(vunc) == 0))
+                vlon = vlon[f]; vlat = vlat[f]; vchl = vchl[f]; vunc = vunc[f]
+                print(vlon.shape)
+                if plot_debug:
+                    # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                    fig, ax = plt.subplots(1,1,figsize=(14,7))
+                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                    ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
+                    ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
+                    ax.scatter(vlon,vlat,2,color='k')
+                    worldmap.plot(ax=ax,color='lightgrey')
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    fig.savefig(os.path.join(plot_debug_loc,'Tiepoint_Timestep_'+str(i)+'.png'),dpi=300)
+                    plt.close(fig)
 
                 V = skg.Variogram(np.column_stack((vlon,vlat)), vchl, n_lags=70,model='exponential', normalize=False,maxlag=100,fit_method='lm')
                 if plot:
@@ -229,6 +257,18 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                 cci_data[g,:] = cci_data_t
                 cci_unc[g,:] = cci_unc_t
                 flag[g,:] = flag_t
+                if plot_debug:
+                    # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                    fig, ax = plt.subplots(1,1,figsize=(14,7))
+                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                    ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
+                    ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
+                    # ax.scatter(vlon,vlat,2,color='k')
+                    worldmap.plot(ax=ax,color='lightgrey')
+                    ax.get_xaxis().set_visible(False)
+                    ax.get_yaxis().set_visible(False)
+                    fig.savefig(os.path.join(plot_debug_loc,'Kriged_Timestep_'+str(i)+'.png'),dpi=300)
+                    plt.close(fig)
                 if plot:
                     fig, axes = plt.subplots(2, 1, figsize=(21,7))
                     axes[0].pcolor(lon,lat,cci_data)
@@ -299,7 +339,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     """
     # Here we check for pixels that flag as 0 (not dealt with yet) and 4,5,6 (for some reason gone through previous averaging - should be fixed now...), and that aren't
     # highly ice covered.
-    f = np.where(((np.isnan(flag) == 1) | (flag == 5) | (flag == 6)) & (lat[np.newaxis,:,np.newaxis] < -40) & (ice <0.9))
+    f = np.where(((np.isnan(flag) == 1) | (flag == 5) | (flag == 6)) & (lat[np.newaxis,:,np.newaxis] < -40) & (ice <0.1))
     print(f)
 
     for i in range(len(f[0])):
@@ -350,7 +390,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     """
     Artic version
     """
-    f = np.where(((np.isnan(flag) == 1) | (flag == 7) | (flag == 8)) & (lat[np.newaxis,:,np.newaxis] > 40) & (ice <0.9))
+    f = np.where(((np.isnan(flag) == 1) | (flag == 7) | (flag == 8)) & (lat[np.newaxis,:,np.newaxis] > 40) & (ice <0.1))
     print(f)
 
     for i in range(len(f[0])):
