@@ -17,6 +17,7 @@ from matplotlib.colors import ListedColormap,LinearSegmentedColormap
 import geopandas as gpd
 import matplotlib as mpl
 import datetime
+import matplotlib.colors as colors
 
 mpl.rcParams['animation.ffmpeg_path'] = r'C:\\Users\\df391\\OneDrive - University of Exeter\\Python\ffmpeg\\bin\\ffmpeg.exe'
 
@@ -26,10 +27,12 @@ def animate(i):
     fig.clear()
     gs = GridSpec(1,1, figure=fig, wspace=0.2,hspace=0.2,bottom=0.1,top=0.95,left=0.1,right=0.98)
     ax = fig.add_subplot(gs[0,0])
-    worldmap.plot(color="lightgrey", ax=ax)
-    c = ax.pcolor(lon,lat,np.transpose(chla[:,:,i]),cmap=cmocean.cm.algae,vmin=-2.5,vmax=2)
+    worldmap.plot(color="lightgrey", ax=ax,zorder=1)
+    # c = ax.pcolor(lon,lat,np.transpose(10**chla[:,:,i]),cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+    c = ax.pcolor(lon,lat,np.transpose(chla[:,:,i]),cmap = cmocean.cm.thermal,vmin=0.2,vmax=0.6)
+
     c2 = fig.colorbar(c,ax=ax)
-    c2.set_label('Chl a (log$_{10}$(mg m$^{-3}$))')
+    c2.set_label('Chl a uncertainty (log$_{10}$(mg m$^{-3}$))')
     ax.set_title('Date = ' + time_o[i].strftime('%Y-%m-%d'))
 
     # ax = fig.add_subplot(gs[1,0])
@@ -39,17 +42,18 @@ def animate(i):
     # c2 = fig.colorbar(c,ax=ax)
     # c2.set_label('Chl a Flag ')
 
-file = f'E:/SCOPE/Argo/8day/out.nc'
+loc = f'E:/SCOPE/Argo/v0-3'
+file = os.path.join(loc,'netcdf','oc-cci_chlor_a_0.25deg.nc')
 c = Dataset(file,'r')
 lon = np.array(c['longitude'])
 lat = np.array(c['latitude'])
-chla = np.array(c['chl_filled'])
+chla = np.array(c['chl_filled_unc'])
 
 flag = np.array(c['chl_flag'])
 time = np.array(c['time'])
 chla[flag == 1] = np.nan
-chla = chla[:,:,40:]
-time = time[40:]
+chla = chla[:,:,12:]
+time = time[12:]
 
 ref = datetime.datetime(1970,1,15)
 time_o = []
@@ -58,5 +62,5 @@ for i in range(len(time)):
 
 c.close()
 fig = plt.figure(figsize=(15,7))
-ani = FuncAnimation(fig, animate, interval=40, blit=False, repeat=True,frames=150)
-ani.save('animations/8day_animated.mp4', dpi=300, writer=FFMpegWriter(fps=3))
+ani = FuncAnimation(fig, animate, interval=40, blit=False, repeat=True,frames=chla.shape[2])
+ani.save(os.path.join(loc,'plots/animated_uncertainty.mp4'), dpi=300, writer=FFMpegWriter(fps=5))
