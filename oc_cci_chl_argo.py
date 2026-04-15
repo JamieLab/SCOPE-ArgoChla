@@ -18,9 +18,9 @@ let = ['a','b','c','d','e','f','g','h','i','j']
 
 def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
     import CCI_OC_SPATIAL_AV as OC
-    # OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+    OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
     # import Data_Loading.gebco_resample as ge
-    # ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2023.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc')
+    # ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2025.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2025.nc')
 
     import Data_Loading.ESA_CCI_land as landcci
     landcci.generate_land_cci('E:/Data/Land-CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.nc','E:/Data/Land-CCI/ESACCI-LC-L4-WB-Ocean-Map-150m-P13Y-2000-v4.0.tif',lon,lat,gebco_out)

@@ -105,7 +105,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_filled' in c.variables.keys():
             c['chl_filled'][:] = chla
         else:
-            sst_o = c.createVariable('chl_filled','f4',('longitude','latitude','time'),zlib=False)
+            sst_o = c.createVariable('chl_filled','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration'
@@ -114,7 +114,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_filled_unc' in c.variables.keys():
             c['chl_filled_unc'][:] = chla
         else:
-            sst_o = c.createVariable('chl_filled_unc','f4',('longitude','latitude','time'),zlib=False)
+            sst_o = c.createVariable('chl_filled_unc','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gapfilled Root-mean-square-difference of log10-transformed chlorophyll-a concentration in seawater.'
@@ -123,7 +123,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_flag' in c.variables.keys():
             c['chl_flag'][:] = chla
         else:
-            sst_o = c.createVariable('chl_flag','f4',('longitude','latitude','time'),zlib=False)
+            sst_o = c.createVariable('chl_flag','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration flag'
 
@@ -444,7 +444,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     if 'flag_l' in c.variables.keys():
         c['flag_l'][:] = flag_l
     else:
-        sst_o = c.createVariable('flag_l','f4',('longitude','latitude','time'),zlib=False)
+        sst_o = c.createVariable('flag_l','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
         sst_o[:] = flag_l
         sst_o.standard_name = 'Chlorophyll-a concentration flag for number of months used in Argo approach'
         sst_o.comment = 'Negative indicates backwards; positive indicates forwards'
@@ -462,10 +462,11 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         c = Dataset(file,'r')
         chl_process = c['chl_process'][i]
         if chl_process == 1:
-            cci_data = np.transpose(c['chl_filled'][:,:,i])
-            flag_t = np.transpose(c['chl_flag'][:,:,i])
-            unc_t = np.transpose(c['chl_filled_unc'][:,:,i])
+            cci_data = np.transpose(np.array(c['chl_filled'][:,:,i]))
+            flag_t = np.transpose(np.array(c['chl_flag'][:,:,i]))
+            unc_t = np.transpose(np.array(c['chl_filled_unc'][:,:,i]))
             c.close()
+            print(cci_data)
             cci_sum = np.zeros((ocean.shape[0]))
             for j in range(ocean.shape[0]):
                 f = np.where(np.isnan(cci_data[j,:])==0)
@@ -505,6 +506,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
                 ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact',values = vunc)
                 field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
                 unc_t[f] =field
+
                 c = Dataset(file,'a')
                 c.variables['chl_filled'][:,:,i] = np.transpose(cci_data)
                 c.variables['chl_filled_unc'][:,:,i] = np.transpose(unc_t)
@@ -517,6 +519,13 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             c.close()
 
     c=Dataset(file,'a')
+    for i in range(0,s[2]):
+        chl = c.variables['chl_filled'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
+        c.variables['chl_filled'][:,:,i] = chl
+        chl = c.variables['chl_filled_unc'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
+        c.variables['chl_filled_unc'][:,:,i] = chl
+        chl = c.variables['chl_flag'][:,:,i]; chl[np.transpose(ocean)==0] = 1
+        c.variables['chl_flag'][:,:,i] = chl
     c.variables['chl_process'].processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
     c.variables['chl_filled'].base_variable = 'Generated from: OC-CCI_chlor_a'
     c.variables['chl_filled_unc'].base_variable = 'Generated from: OC-CCI_chlor_a_log10_rmsd'
