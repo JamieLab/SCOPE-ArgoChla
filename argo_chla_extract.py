@@ -85,6 +85,8 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
                     print('CHLA_ADJUSTED is variable!')
 
                     depth = np.array(c['PRES'])
+                    # DJF 17/04/2026: Alex Cox identified pressure should be converted to depth (I thought I did this...). For a max depth of ~40m the difference in depth  if pressure converted would be ~0.4m - so small effect here.
+                    # Temperature and Salinity not provided in BGC-Argo files so would require getting the Core Argo file for this profile.
                     ch = np.array(c['CHLA_ADJUSTED']).astype(np.float64)
                     ch_unc = np.array(c['CHLA_ADJUSTED_ERROR']).astype(np.float64)
                     qf = np.array(c['CHLA_ADJUSTED_QC'])
@@ -97,9 +99,8 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
                             except:
                                 qf2[i,j] = 9
 
-                    ch[qf2>1] = np.nan
-
-                    qf2[np.isnan(ch) == 1] = np.nan
+                    ch[qf2>1] = np.nan # Setting every value that is not good data to nan (1 is good data, and 0 means no QC performed (i.e good data?))
+                    qf2[np.isnan(ch) == 1] = np.nan # Sets qf to nan where chlorophyll doesnt have a value.
 
                     cp = np.sum(np.isnan(ch)==False,axis=1)
                     print(cp)
