@@ -70,7 +70,7 @@ def unc_montecarlo(chla,chla_unc,per,per_unc,ens = 1000):
     out = np.std(fun)
     return out
 
-def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,ref_step = 30.5,out_loc = False,single_out_loc = False,ice = True,plot_debug=True,plot_debug_loc=''):
+def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,out_loc = False,single_out_loc = False,ice = True,plot_debug=True,plot_debug_loc=''):
     ref = datetime.datetime(1970,1,15)
 
     c = Dataset(bathy_file,'r')
@@ -105,7 +105,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_filled' in c.variables.keys():
             c['chl_filled'][:] = chla
         else:
-            sst_o = c.createVariable('chl_filled','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
+            sst_o = c.createVariable('chl_filled','f4',('longitude','latitude','time'),zlib=True,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration'
@@ -114,7 +114,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_filled_unc' in c.variables.keys():
             c['chl_filled_unc'][:] = chla
         else:
-            sst_o = c.createVariable('chl_filled_unc','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
+            sst_o = c.createVariable('chl_filled_unc','f4',('longitude','latitude','time'),zlib=True,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.units = 'log10(mgm-3)'
             sst_o.standard_name = 'Gapfilled Root-mean-square-difference of log10-transformed chlorophyll-a concentration in seawater.'
@@ -123,14 +123,14 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
         if 'chl_flag' in c.variables.keys():
             c['chl_flag'][:] = chla
         else:
-            sst_o = c.createVariable('chl_flag','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
+            sst_o = c.createVariable('chl_flag','f4',('longitude','latitude','time'),zlib=True,fill_value=np.nan)
             sst_o[:] = chla
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration flag'
 
         if 'chl_process' in c.variables.keys():
             c['chl_process'][:] = np.zeros((cci[2]))
         else:
-            sst_o = c.createVariable('chl_process','f4',('time'),zlib=False)
+            sst_o = c.createVariable('chl_process','f4',('time'),zlib=True)
             sst_o[:] = np.zeros((cci[2]))
             sst_o.standard_name = 'Process indicator'
             sst_o.processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'

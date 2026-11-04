@@ -55,7 +55,8 @@ def animate(i,time,x_locs,y_locs,ani_data,data_add):
         norm=colors.LogNorm(vmin=10**-2, vmax=10**1),
         zorder=1,
         )
-    ax.add_feature(cfeature.GSHHSFeature(scale='l'), facecolor="grey",edgecolor=None,zorder=7)
+    # ax.add_feature(cfeature.GSHHSFeature(scale='l'), facecolor="grey",edgecolor=None,zorder=7)
+    ax.add_feature(cfeature.NaturalEarthFeature('physical','land',scale='50m'),facecolor="grey",edgecolor=None,zorder=7)
     # ax.add_feature(cfeature.LAND, edgecolor='black', facecolor='grey', linewidth=0.5, zorder=7)
     cax = plt.axes([0.72,0.95,0.25,0.025])
     cbar = plt.colorbar(ap,cax=cax,orientation='horizontal');cbar.set_label('Chlorophyll-a (mg m$^{-3}$)')

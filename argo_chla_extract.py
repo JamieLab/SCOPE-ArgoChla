@@ -21,6 +21,9 @@ import glob
 from netCDF4 import Dataset
 import datetime
 from ftplib import FTP
+from urllib.request import urlretrieve
+from time import sleep
+
 
 def makefolder(fold):
     if not os.path.exists(fold):
@@ -35,14 +38,51 @@ def checkfileexist(file):
     else:
         return True
 
-def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_loc='', start_yr = 1997,end_yr=2024):
+def ftp_download(argo_list,i,argo_loc):
+    ftp_loc = 'ftp.ifremer.fr' # FTP Location
+    # ftp_loc = 'usgodae.org'
+    loc = '/ifremer/argo/dac' # Location within the FTP that the Argo files are
+    # loc = '/pub/outgoing/argo'
+    ftp = FTP(ftp_loc)
+    ftp.login()
+    l = argo_list['file'].iloc[i].split('/')
+
+    #print(loc+'/'+'/'.join(l))
+    ftp.cwd(loc+'/'+'/'.join(l[0:-1]))
+    #print(l[-1])
+    ftp.retrbinary("RETR " + loc+'/'+'/'.join(l) ,open(os.path.join(argo_loc,argo_list['file'].iloc[i]), 'wb').write)
+    ftp.close()
+
+def http_download(argo_list,i,argo_loc):
+    loc = 'https://data-argo.ifremer.fr/dac'
+    l = argo_list['file'].iloc[i].split('/')
+    http_file = loc+'/'+'/'.join(l)
+    print(http_file)
+    urlretrieve(http_file,os.path.join(argo_loc,argo_list['file'].iloc[i]))
+
+def amazon_download(argo_list,i,argo_loc):
+    import boto3
+    import botocore
+    from botocore import UNSIGNED
+    from botocore.config import Config
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED),region_name='eu-west-3')
+    file = 'pub/dac/'+argo_list['file'].iloc[i]
+    print(file)
+    try:
+        s3.download_file('argo-gdac-sandbox',file,os.path.join(argo_loc,argo_list['file'].iloc[i]))
+    except botocore.exceptions.ClientError as error:
+        print('File not found')
+    s3.close()
+
+
+def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_loc='', start_yr = 1997,end_yr=2024,ftp_downloading=False,amazon = True):
 
     ref = datetime.datetime(1950,1,1,0,0,0) # This is the reference time within the Argo files
-    ftp_loc = 'ftp.ifremer.fr' # FTP Location
-    loc = '/ifremer/argo/dac' # Location within the FTP that the Argo files are
+
     #Make the local argo folder
     makefolder(argo_loc)
     # Load the argo profiles list
+
     for k in range(len(lat_bounds)):
         argo_list = pd.read_table(argo_file,delimiter=',',skiprows=8)
 
@@ -62,6 +102,7 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
 
         chl = []
         for i in range(0,len(argo_list)):
+
             print(str(i) + ': ' +argo_list['file'].iloc[i])
             s = argo_list['file'].iloc[i].split('/')
             makefolder(os.path.join(argo_loc,s[0]))
@@ -69,14 +110,13 @@ def argo_extract(argo_file,argo_loc, lat_bounds,output_files,plot = False,out_lo
             makefolder(os.path.join(argo_loc,s[0],s[1],s[2]))
             if (checkfileexist(os.path.join(argo_loc,argo_list['file'].iloc[i])) == False) & (argo_list['file'].iloc[i].split('/')[-1][1] != 'R'): # Second term to only get delayed (so corrected) files....
                 print('Downloading: ' + argo_list['file'].iloc[i])
-                ftp = FTP(ftp_loc)
-                ftp.login()
-                l = argo_list['file'].iloc[i].split('/')
-                #print(loc+'/'+'/'.join(l))
-                ftp.cwd(loc+'/'+'/'.join(l[0:-1]))
-                #print(l[-1])
-                ftp.retrbinary("RETR " + loc+'/'+'/'.join(l) ,open(os.path.join(argo_loc,argo_list['file'].iloc[i]), 'wb').write)
-                ftp.close()
+
+                if ftp_downloading:
+                    ftp_download(argo_list,i,argo_loc)
+                elif amazon:
+                    amazon_download(argo_list,i,argo_loc)
+                else:
+                    http_download(argo_list,i,argo_loc)
 
             if (checkfileexist(os.path.join(argo_loc,argo_list['file'].iloc[i])) == True) & (argo_list['file'].iloc[i].split('/')[-1][1] != 'R'):
                 c = Dataset(os.path.join(argo_loc,argo_list['file'].iloc[i]))

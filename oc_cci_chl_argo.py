@@ -16,25 +16,120 @@ import data_utils as du
 
 let = ['a','b','c','d','e','f','g','h','i','j']
 
-def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False):
+def download_occci_monthly(loc,start_yr,end_yr):
+    from ftplib import FTP
+
+    ftp_loc = 'oceancolour.org'
+    username = 'oc-cci-data'
+    password = 'ELaiWai8ae'
+    ftp_fold = '/occci-v6.0/geographic/netcdf/monthly/chlor_a'
+    ftp = FTP(ftp_loc)
+    ftp.login(username,password)
+    du.makefolder(loc)
+    for i in range(start_yr,end_yr+1):
+        du.makefolder(os.path.join(loc,str(i)))
+        ftp.cwd(ftp_fold+'/'+str(i))
+        filenames = ftp.nlst()
+        for filename in filenames:
+            print(filename)
+            local_filename = os.path.join(loc,str(i), filename)
+            file = open(local_filename, 'wb')
+            ftp.retrbinary('RETR '+ filename, file.write)
+            file.close()
+
+    ftp.quit()
+
+def download_occci_8day(loc,start_yr,end_yr):
+    from ftplib import FTP
+
+    ftp_loc = 'oceancolour.org'
+    username = 'oc-cci-data'
+    password = 'ELaiWai8ae'
+    ftp_fold = '/occci-v6.0/geographic/netcdf/8day/chlor_a'
+    ftp = FTP(ftp_loc)
+    ftp.login(username,password)
+    du.makefolder(loc)
+    for i in range(start_yr,end_yr+1):
+        du.makefolder(os.path.join(loc,str(i)))
+        ftp.cwd(ftp_fold+'/'+str(i))
+        filenames = ftp.nlst()
+        for filename in filenames:
+            print(filename)
+            local_filename = os.path.join(loc,str(i), filename)
+            file = open(local_filename, 'wb')
+            ftp.retrbinary('RETR '+ filename, file.write)
+            file.close()
+
+    ftp.quit()
+
+def download_osisaf_daily(loc,start_yr,end_yr):
+    from ftplib import FTP
+    du.makefolder(loc)
+
+    ftp_loc = 'osisaf.met.no'
+
+    loc1 = '/reprocessed/ice/conc/v3p1' # This is the main climate data record (OSI-430) covering 1978 to 2020
+    loc2 = '/reprocessed/ice/conc-cont-reproc/v3p0' # This is the interim climate data record (OSI-430-a1) covering 2021 to August 2025
+    loc3 = '/reprocessed/ice/conc-cont-reproc-amsr/v3p0' # This is the recommended itnerim climate record extension as OSI-430-a1 is currently have date ingestion issues
+
+    switch_date = [[1,2021],[9,2025]]
+
+    ftp = FTP(ftp_loc)
+    ftp.login()
+    du.makefolder(loc)
+    t = 0
+    for i in range(start_yr,end_yr+1):
+        for j in range(1,13):
+            if (i==switch_date[0][1]) & (j == switch_date[0][0]):
+                t=1
+            elif (i==switch_date[1][1]) & (j == switch_date[1][0]):
+                t=2
+
+            if t == 0:
+                ftp_fold = loc1
+            elif t==1:
+                ftp_fold=loc2
+            else:
+                ftp_fold=loc3
+            du.makefolder(os.path.join(loc,str(i),du.numstr(j)))
+            ftp.cwd(ftp_fold+'/'+str(i)+'/'+du.numstr(j))
+            filenames = ftp.nlst()
+            for filename in filenames:
+                print(filename)
+                local_filename = os.path.join(loc,str(i),du.numstr(j), filename)
+                file = open(local_filename, 'wb')
+                ftp.retrbinary('RETR '+ filename, file.write)
+                file.close()
+    ftp.quit()
+
+def generate_occci(occci_file,res,start_yr,end_yr,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False,chla_loc='F:/Data/OC-CCI/monthly/chlor_a',cci_land_file='E:/Data/Land-CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0',osisaf_loc='F:/Data/OSISAF',multiprocess=False):
+    lon,lat = du.reg_grid(lon=res,lat=res)
     import CCI_OC_SPATIAL_AV as OC
-    OC.oc_cci_average('F:/Data/OC-CCI/monthly/chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted',start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
-    # import Data_Loading.gebco_resample as ge
-    # ge.gebco_resample('F:/Data/Bathymetry/GEBCO_2025.nc',lon,lat,save_loc = 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2025.nc')
-
     import Data_Loading.ESA_CCI_land as landcci
-    landcci.generate_land_cci('E:/Data/Land-CCI/ESACCI-LC-L4-WB-Map-150m-P13Y-2000-v4.0.nc','E:/Data/Land-CCI/ESACCI-LC-L4-WB-Ocean-Map-150m-P13Y-2000-v4.0.tif',lon,lat,gebco_out)
+    landcci.generate_land_cci(cci_land_file+'.nc',cci_land_file+'.tif',lon,lat,gebco_out)
 
-    from Data_Loading.OSISAF_download import OSISAF_spatial_average, OSISAF_merge_hemisphere, OSISAF_monthly_av
-    OSISAF_monthly_av('F:/Data/OSISAF',start_yr=start_yr,end_yr=end_yr)
-    OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'NH')
-    OSISAF_spatial_average(data='F:/Data/OSISAF/monthly',out_loc='F:/Data/OSISAF/monthly/'+str(res)+'DEG',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'SH')
-    OSISAF_merge_hemisphere('F:/Data/OSISAF/monthly/'+str(res)+'DEG', 'F:/Data/Bathymetry/'+str(res)+'DEG_GEBCO_2023.nc',start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
+    du.makefolder(os.path.join(chla_loc,str(res)+'DEG_weighted'))
+    if multiprocess:
+        OC.multiprocess_oc_cci_average(chla_loc,os.path.join(chla_loc,str(res)+'DEG_weighted'),start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+    else:
+        OC.oc_cci_average(chla_loc,os.path.join(chla_loc,str(res)+'DEG_weighted'),start_yr = start_yr,end_yr = end_yr,log=lon,lag=lat,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+
+    from Data_Loading.OSISAF_download import OSISAF_spatial_average, OSISAF_merge_hemisphere, OSISAF_monthly_av, multiprocess_OSISAF_monthly_av, multiprocess_OSISAF_spatial_average, multiprocess_OSISAF_merge_hemisphere
+    if multiprocess:
+        multiprocess_OSISAF_monthly_av(osisaf_loc,start_yr=start_yr,end_yr=end_yr)
+        multiprocess_OSISAF_spatial_average(data=os.path.join(osisaf_loc,'monthly'),out_loc=os.path.join(osisaf_loc,'monthly',str(res)+'DEG'),start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'nh')
+        multiprocess_OSISAF_spatial_average(data=os.path.join(osisaf_loc,'monthly'),out_loc=os.path.join(osisaf_loc,'monthly',str(res)+'DEG'),start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'sh')
+        multiprocess_OSISAF_merge_hemisphere(os.path.join(osisaf_loc,'monthly',str(res)+'DEG'), gebco_out,start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
+    else:
+        OSISAF_monthly_av(osisaf_loc,start_yr=start_yr,end_yr=end_yr)
+        OSISAF_spatial_average(data=os.path.join(osisaf_loc,'monthly'),out_loc=os.path.join(osisaf_loc,'monthly',str(res)+'DEG'),start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'NH')
+        OSISAF_spatial_average(data=os.path.join(osisaf_loc,'monthly'),out_loc=os.path.join(osisaf_loc,'monthly',str(res)+'DEG'),start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat,hemi = 'SH')
+        OSISAF_merge_hemisphere(os.path.join(osisaf_loc,'monthly',str(res)+'DEG'), gebco_out,start_yr=start_yr,end_yr=end_yr,log=lon,lag=lat)
 
     import construct_input_netcdf as cinp
-    vars = [['OC-CCI','chlor_a','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
-        ['OC-CCI','chlor_a_log10_rmsd','F:/Data/OC-CCI/monthly/chlor_a/'+str(res)+'DEG_weighted/%Y/%Y_%m_*.nc',0],
-            ['OSISAF','ice_conc','F:/Data/OSISAF/monthly/'+str(res)+'DEG/%Y/%Y%m*COM.nc',0]]
+    vars = [['OC-CCI','chlor_a',os.path.join(chla_loc,str(res)+'DEG_weighted','%Y','%Y_%m_*.nc'),0],
+        ['OC-CCI','chlor_a_log10_rmsd',os.path.join(chla_loc,str(res)+'DEG_weighted','%Y','%Y_%m_*.nc'),0],
+        ['OSISAF','ice_conc',os.path.join(osisaf_loc,'monthly',str(res)+'DEG','%Y','%Y%m*COM.nc'),0]]
 
     cinp.driver(occci_file,vars,start_yr = start_yr,end_yr = end_yr,lon = lon,lat = lat,fill_clim=False)
     c = Dataset(occci_file,'a')
@@ -43,7 +138,7 @@ def generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=False,gebco_f
     c.variables['OSISAF_ice_conc'].file_location = vars[2][2]
     c.close()
 
-def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,area_wei=False,gebco_file = False,gebco_out=False,land_mask=False,netcdf_loc = 'E:/SCOPE/Argo'):
+def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags = 9,netcdf_loc = 'E:/SCOPE/Argo'):
     if plot:
         widths = 0.75
         font = {'weight' : 'normal',
@@ -56,14 +151,14 @@ def chl_argo_relationship(res,start_yr,end_yr,files,occci_file,plot=False,lags =
         axs = flatList
         p=0
     lon,lat = du.reg_grid(lat=res,lon=res)
-    generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask)
+    #generate_occci(occci_file,res,lon,lat,start_yr,end_yr,area_wei=area_wei,gebco_file = gebco_file,gebco_out=gebco_out,land_mask=land_mask,chla_loc=chla_loc,cci_land_file=cci_land_file,osisaf_loc=osisaf_loc,multiprocess=multiprocess)
     long,latg = np.meshgrid(lon,lat)
     long = np.transpose(long)
     latg = np.transpose(latg)
     for file in files:
         app = file + '_' + str(res)
         file2 = os.path.split(file)
-        argo_file = os.path.join(netcdf_loc,'netcdf/'+file2[1]+'_'+str(res)+'deg.nc')
+        argo_file = os.path.join(netcdf_loc,'netcdf',file2[1]+'_'+str(res)+'deg.nc')
 
 
         c = Dataset(argo_file,'r')
