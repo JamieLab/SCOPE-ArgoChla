@@ -1,5 +1,5 @@
 # SCOPE-ArgoChla
-An approach to gap filling the OC-CCI chlorphyll-a Climate Data Record using an observation (Bio-Argo) based approach
+An approach to gap filling the Ocean Colour Climate Change Initiative (CCI) chlorphyll-a Climate Data Record using an observation (Bio-Argo) based approach
 
 The complete method, evaluation and results are published in: 
 
