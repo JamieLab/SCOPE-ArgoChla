@@ -3,4 +3,4 @@ An approach to gap filling the Ocean Colour Climate Change Initiative (CCI) chlo
 
 The complete method, evaluation and results are published in: 
 
-Hong, Z., Long, D., Li, X., Wang, Y., Zhang, J., Hamouda, M. A., and Mohamed, M. M.: A global daily gap-filled chlorophyll-a dataset in open oceans during 2001–2021 from multisource information using convolutional neural networks, Earth Syst. Sci. Data, 15, 5281–5300, https://doi.org/10.5194/essd-15-5281-2023, 2023
+Ford, D. J., Kulk, G., Sathyendranath, S., and Shutler, J. D.: Decadal and spatially complete global surface chlorophyll-a data record from satellite and BGC-Argo observations, Earth Syst. Sci. Data, 18, 569–584, https://doi.org/10.5194/essd-18-569-2026, 2026. 
