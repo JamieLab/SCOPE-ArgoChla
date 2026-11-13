@@ -13,9 +13,7 @@ import scipy.interpolate
 import geopandas as gpd
 import matplotlib.colors as colors
 import cmocean
-
-sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU')
-sys.path.append('C:\\Users\\df391\\OneDrive - University of Exeter\\Post_Doc_ESA_Contract\\OceanICU\Data_Loading')
+import multiprocessing as mp
 
 import data_utils as du
 
@@ -51,51 +49,22 @@ def save_chla(chla,flag,flag_l,lat,lon,time,outloc,time_r):
             lon_o[:] = lon
             outp.close()
 
-# plot = False
-# reset = False
-# daystep = 8 / 30.5
-# ref_step = 30.5
-# ice = True
-# ice_name = 'OSISAF_sea_ice_fraction'#'OSISAF_ice_conc'
-# res = 0.25
-# outloc = False#'E:/SCOPE/NN/Ford_et_al_SOM_chla/inputs/chla'
-# # file = f'netcdf/oc-cci_chlor_a_{res}deg.nc'
-# file = f'E:/SCOPE/Argo/8day/out.nc'
-# bathy_file = f'F:/Data/Bathymetry/{res}DEG_GEBCO_2023.nc'
 
 def unc_montecarlo(chla,chla_unc,per,per_unc,ens = 1000):
-    chla_r = chla + np.random.normal(0,chla_unc,ens)
-    per_r = per + np.random.normal(0,per_unc,ens)
+    """
+    Function to implement a monte carlo uncertainty propagation
+    """
+    chla_r = np.copy(chla) + np.random.normal(0,chla_unc,ens)
+    per_r = np.copy(per) + np.random.normal(0,per_unc,ens)
     fun =  np.log10((10**chla_r) * np.abs((1-np.abs(per_r))))
     out = np.std(fun)
     return out
 
-def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,out_loc = False,single_out_loc = False,ice = True,plot_debug=True,plot_debug_loc=''):
-    ref = datetime.datetime(1970,1,15)
-
-    c = Dataset(bathy_file,'r')
-    ocean = np.transpose(np.array(c['ocean_proportion']))
-    c.close()
-    ocean_sum = np.zeros((ocean.shape[0]))
-    for i in range(ocean.shape[0]):
-        f = np.where(ocean[i,:]>0)
-        if len(f[0])>0:
-            ocean_sum[i] = len(f[0])
-        else:
-            ocean_sum[i] = np.nan
-    ocean_sum[ocean_sum<1] = np.nan
-    print(ocean_sum)
-    #
+def oc_cci_fill_setup(file,reset=True):
+    """
+    Function to add additional varaibles to the OC-CCI file ready for Kriging and gap filling
+    """
     c = Dataset(file,'a')
-    lat = np.array(c['latitude'])
-    lon = np.array(c['longitude'])
-    time = np.array(c['time'])
-
-    time_r = np.zeros((len(time),2))
-    for i in range(0,len(time)):
-        time_r[i,0] = (ref + datetime.timedelta(days=int(time[i]))).year
-        time_r[i,1] = (ref + datetime.timedelta(days=int(time[i]))).month
-    #
     if reset:
         cci = c['OC-CCI_chlor_a'].shape
         print(cci)
@@ -127,181 +96,294 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
             sst_o[:] = chla
             sst_o.standard_name = 'Gap filled Chlorophyll-a concentration flag'
 
-        if 'chl_process' in c.variables.keys():
-            c['chl_process'][:] = np.zeros((cci[2]))
-        else:
-            sst_o = c.createVariable('chl_process','f4',('time'),zlib=True)
-            sst_o[:] = np.zeros((cci[2]))
-            sst_o.standard_name = 'Process indicator'
-            sst_o.processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
+        # if 'chl_process' in c.variables.keys():
+        #     c['chl_process'][:] = np.zeros((cci[2]))
+        # else:
+        #     sst_o = c.createVariable('chl_process','f4',('time'),zlib=True)
+        #     sst_o[:] = np.zeros((cci[2]))
+        #     sst_o.standard_name = 'Process indicator'
+        #     sst_o.processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
     c.close()
 
+def oc_cci_cloud_kringing(file,ice_name,lat,lon,time,ocean,ocean_sum,i=0,save_loc='',ice=True,plot_debug=False,plot_debug_loc='',
+    chl_var = 'OC-CCI_chlor_a',chl_unc_var = 'OC-CCI_chlor_a_log10_rmsd',chl_flag_var='chl_flag'):
+    """
+
+    """
+    date = datetime.datetime(int(time[0]),int(time[1]),int(time[2]))
+    outfile = os.path.join(save_loc,'temp_kriging_'+str(i)+'.nc')
+
+    print('Timestep: ' + str(i) +' / '+date.strftime('%Y%m%d'))
+
+    if not du.checkfileexist(outfile):
+
+        c = Dataset(file,'r')
+        cci_data = np.transpose(np.array(c[chl_var][:,:,i]))
+        cci_unc = np.transpose(np.array(c[chl_unc_var][:,:,i]))
+        flag = np.transpose(np.array(c[chl_flag_var])[:,:,i])
+        if ice:
+            ice_data = np.transpose(np.array(c[ice_name])[:,:,i])
+        c.close()
+        f = np.where(np.isnan(cci_data) == 0)
+        flag[f] = 2
+        f = np.where(ocean == 0)
+        flag[f] = 1
+
+        cci_sum = np.zeros((lat.shape[0]))
+        for j in range(lat.shape[0]):
+            f = np.where(np.isnan(cci_data[j,:])==0)
+            #print(f)
+            if len(f[0])>0:
+                cci_sum[j] = len(f[0])
+
+        total = cci_sum/ocean_sum
+        print(np.nanmean(total))
+        if np.nanmean(total) > 0.3:
+            print('Total')
+
+            f = np.where(total>0.2)[0]
+
+            if plot_debug:
+                du.makefolder(plot_debug_loc)
+                worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                fig, ax = plt.subplots(1,1,figsize=(14,7))
+                ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                ax.plot([lon[0],lon[-1]],[lat[f[0]],lat[f[0]]],'b-',linewidth=2)
+                ax.plot([lon[0],lon[-1]],[lat[f[-1]],lat[f[-1]]],'b-',linewidth=2)
+                worldmap.plot(ax=ax,color='lightgrey')
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                fig.savefig(os.path.join(plot_debug_loc,'Lat_dependency_Timestep_'+str(i)+'.png'),dpi=300)
+                plt.close(fig)
+
+            gp = [f[0],f[-1]]
+            print(gp)
+            g = np.squeeze(np.where((lat<=lat[gp[1]]) & (lat>=lat[gp[0]])))
+            lat_t = lat[g]
+            # lon = lon[g]
+            cci_data_t = cci_data[g,:]
+            cci_unc_t = cci_unc[g,:]
+            # cci = cci[:,g]
+            ocean_t = ocean[g,:]
+            flag_t = flag[g,:]
+            # ocean = ocean[:,g]
+            # plt.figure()
+            # plt.pcolor(lon,lat,cci)
+            # plt.show()
+            #
+            lon_g,lat_g = np.meshgrid(lon,lat_t)
+            print(lon_g.shape)
+            print(lat_g.shape)
+            #f = np.where((ocean_t > 0))
+            #print(len(f[0]))
+            l =int(cci_data.shape[1]*0.04)
+            vlon = np.ravel(lon_g)[0::l]
+            vlat = np.ravel(lat_g)[0::l]
+
+            vchl = np.ravel(cci_data_t)[0::l]
+            vunc = np.ravel(cci_unc_t)[0::l]
+
+            f = np.where((np.isnan(vchl) == 0) & (np.isnan(vunc) == 0))
+            vlon = vlon[f]; vlat = vlat[f]; vchl = vchl[f]; vunc = vunc[f]
+            print(vlon.shape)
+            if plot_debug:
+                # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                fig, ax = plt.subplots(1,1,figsize=(14,7))
+                ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
+                ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
+                ax.scatter(vlon,vlat,2,color='k')
+                worldmap.plot(ax=ax,color='lightgrey')
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                fig.savefig(os.path.join(plot_debug_loc,'Tiepoint_Timestep_'+str(i)+'.png'),dpi=300)
+                plt.close(fig)
+
+            V = skg.Variogram(np.column_stack((vlon,vlat)), vchl, n_lags=70,model='exponential', normalize=False,maxlag=70,fit_method='lm')
+            if plot_debug:
+                V.plot(show=True)
+                wait = input("Press Enter to continue.")
+            ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact')
+            f = np.where((np.isnan(cci_data_t)==1) & (ocean_t > 0))
+            print(len(f[0]))
+            field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
+            cci_data_t[f] = field
+            flag_t[f] = 3
+
+            ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact',values = vunc)
+            f = np.where((np.isnan(cci_unc_t)==1) & (ocean_t > 0))
+            field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
+            cci_unc_t[f] = field
+
+            cci_data[g,:] = cci_data_t
+            cci_unc[g,:] = cci_unc_t
+            flag[g,:] = flag_t
+            if plot_debug:
+                # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
+                fig, ax = plt.subplots(1,1,figsize=(14,7))
+                ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
+                ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
+                ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
+                # ax.scatter(vlon,vlat,2,color='k')
+                worldmap.plot(ax=ax,color='lightgrey')
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                fig.savefig(os.path.join(plot_debug_loc,'Kriged_Timestep_'+str(i)+'.png'),dpi=300)
+                plt.close(fig)
+                fig, axes = plt.subplots(2, 1, figsize=(21,7))
+                axes[0].pcolor(lon,lat,cci_data)
+
+                axes[1].pcolor(lon,lat,flag)
+                fig.savefig(os.path.join(plot_debug_loc,'Kriged_output_Timestep_'+str(i)+'.png'),dpi=300)
+                plt.close(fig)
+
+            if ice:
+                cci_data[(ice_data >= 0.9) & (flag != 2)] = np.log10(0.1)
+                cci_unc[(ice_data >= 0.9) & (flag != 2)] = 0.4
+                flag[(ice_data >= 0.9) & (flag != 2)] = 4
+            du.netcdf_create_basic(outfile,np.transpose(cci_data),'chl_filled',lat,lon)
+            du.netcdf_append_basic(outfile,np.transpose(cci_unc),'chl_filled_unc')
+            du.netcdf_append_basic(outfile,np.transpose(flag),'chl_flag')
+            d = Dataset(outfile,'a')
+            d.date = date.strftime('%Y%m%d')
+            d.close()
+
+def occci_final_kriging(file,lat,lon,time,ocean,ocean_sum,i=0,save_loc='',plot_debug=False,plot_debug_loc='',
+    chl_var = 'chl_filled',chl_unc_var = 'chl_filled_unc',chl_flag_var='chl_flag'):
+
+    lon_g,lat_g = np.meshgrid(lon,lat)
+    date = datetime.datetime(int(time[0]),int(time[1]),int(time[2]))
+    outfile = os.path.join(save_loc,'temp_kriging_final_'+str(i)+'.nc')
+
+    print('Timestep: ' + str(i) +' / '+date.strftime('%Y%m%d'))
+    if not du.checkfileexist(outfile):
+
+        c = Dataset(file,'r')
+
+        cci_data = np.transpose(np.array(c['chl_filled'][:,:,i]))
+        flag_t = np.transpose(np.array(c['chl_flag'][:,:,i]))
+        unc_t = np.transpose(np.array(c['chl_filled_unc'][:,:,i]))
+        c.close()
+        print(cci_data)
+        cci_sum = np.zeros((ocean.shape[0]))
+        for j in range(ocean.shape[0]):
+            f = np.where(np.isnan(cci_data[j,:])==0)
+            #print(f)
+            if len(f[0])>0:
+                cci_sum[j] = len(f[0])
+
+        total = cci_sum/ocean_sum
+        print(np.nanmean(total))
+        if np.nanmean(total) > 0.3:
+            print(lon_g.shape)
+            print(lat_g.shape)
+            f = np.where((np.isnan(cci_data)==0) & (ocean > 0))
+            print(len(f[0]))
+            l =int(cci_data.shape[1]*0.06)
+            vlon = np.ravel(lon_g[f])[0::l]
+            vlat = np.ravel(lat_g[f])[0::l]
+            #
+            vchl = np.ravel(cci_data[f])
+            print(vchl.size)
+            vchl = vchl[0::l]
+            print(vchl.size)
+            vunc = np.ravel(unc_t[f])[0::l]
 
 
+            V = skg.Variogram(np.column_stack((vlon,vlat)), vchl, n_lags=70,model='exponential', normalize=False,maxlag=100,fit_method='lm')
+            if plot_debug:
+                V.plot(show=True)
+                wait = input("Press Enter to continue.")
+            ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact')
+            f = np.where((np.isnan(cci_data)==1) & (ocean > 0))
+            print(len(f[0]))
+            field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
+            cci_data[f] = field
+            flag_t[f] = 9
+
+            ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact',values = vunc)
+            field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
+            unc_t[f] =field
+
+            du.netcdf_create_basic(outfile,np.transpose(cci_data),'chl_filled',lat,lon)
+            du.netcdf_append_basic(outfile,np.transpose(cci_unc),'chl_filled_unc')
+            du.netcdf_append_basic(outfile,np.transpose(flag),'chl_flag')
+            d = Dataset(outfile,'a')
+            d.date = date.strftime('%Y%m%d')
+            d.close()
+
+def collect_kriging(loc,len_i,occci_file):
+
+    file = os.path.join(loc,'temp_kriging_%i.nc')
+    vars = ['chl_filled','chl_filled_unc','chl_flag']
+
+    for v in vars:
+        print('Adding: ' + v)
+        t = 0
+        for i in range(len_i):
+            if du.checkfileexist(file.replace('%i',str(i))):
+                c = Dataset(file.replace('%i',str(i)),'r')
+                chl = np.array(c[v])
+                if t == 0:
+                    out = np.zeros((chl.shape[0],chl.shape[1],len_i))
+                    out[:] = np.nan
+                    t=1
+                out[:,:,i] = chl
+                c.close()
+
+        c = Dataset(occci_file,'a')
+        c[v][:] = out
+        c.close()
+
+def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fraction',plot=False,out_loc = False,single_out_loc = False,ice = True,plot_debug=True,plot_debug_loc='',process=4,save_loc=''):
+    """
+    Overall driving function for the fill methodology
+    """
+    daystep=1
+    ref = datetime.datetime(1970,1,15)
+    c = Dataset(file,'r')
+    keys = list(c.variables.keys())
+    c.close()
+    if 'chl_filled' not in keys:
+        oc_cci_fill_setup(file,reset=reset)
+    if reset:
+        oc_cci_fill_setup(file,reset=reset)
+
+    c = Dataset(bathy_file,'r')
+    ocean = np.transpose(np.array(c['ocean_proportion']))
+    c.close()
+    ocean_sum = np.zeros((ocean.shape[0]))
+    for i in range(ocean.shape[0]):
+        f = np.where(ocean[i,:]>0)
+        if len(f[0])>0:
+            ocean_sum[i] = len(f[0])
+        else:
+            ocean_sum[i] = np.nan
+    ocean_sum[ocean_sum<1] = np.nan
+    print(ocean_sum)
+    #
     c = Dataset(file,'r')
     lat = np.array(c['latitude'])
     lon = np.array(c['longitude'])
-    cci = c['OC-CCI_chlor_a'].shape
-    #cci_unc = c['OC-CCI_chlor_a_log10_rmsd']
+    time = np.array(c['time'])
+    time_r = np.zeros((len(time),3))
+    for i in range(0,len(time)):
+        time_r[i,0] = (ref + datetime.timedelta(days=int(time[i]))).year
+        time_r[i,1] = (ref + datetime.timedelta(days=int(time[i]))).month
+        time_r[i,2] = (ref + datetime.timedelta(days=int(time[i]))).day
     c.close()
-    for i in range(0,cci[2]):
-        print('Timestep: ' + str(i) + ' of ' + str(cci[2]))
-        c = Dataset(file,'a')
-        process_flag = c['chl_process'][i]
-        if process_flag == 0:
-            print('Processing flag = 0')
-            cci_data = np.transpose(np.array(c['OC-CCI_chlor_a'][:,:,i]))
-            cci_unc = np.transpose(np.array(c['OC-CCI_chlor_a_log10_rmsd'][:,:,i]))
-            flag = np.transpose(np.array(c['chl_flag'])[:,:,i])
-            if ice:
-                ice_data = np.transpose(np.array(c[ice_name])[:,:,i])
-            c.close()
-            f = np.where(np.isnan(cci_data) == 0)
-            flag[f] = 2
-            f = np.where(ocean == 0)
-            flag[f] = 1
 
-            cci_sum = np.zeros((ocean.shape[0]))
-            for j in range(ocean.shape[0]):
-                f = np.where(np.isnan(cci_data[j,:])==0)
-                #print(f)
-                if len(f[0])>0:
-                    cci_sum[j] = len(f[0])
-
-            total = cci_sum/ocean_sum
-            print(np.nanmean(total))
-            if np.nanmean(total) > 0.3:
-                print('Total')
-                if plot:
-                    plt.figure()
-                    plt.plot(lat,(ocean_sum))
-                    plt.plot(lat,cci_sum)
-                    plt.figure()
-                    plt.plot(lat,total)
-                    plt.plot([-90,90],[0.1,0.1],'k--')
-                    plt.show()
-                f = np.where(total>0.2)[0]
-
-                if plot_debug:
-                    du.makefolder(plot_debug_loc)
-                    worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
-                    fig, ax = plt.subplots(1,1,figsize=(14,7))
-                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
-                    ax.plot([lon[0],lon[-1]],[lat[f[0]],lat[f[0]]],'b-',linewidth=2)
-                    ax.plot([lon[0],lon[-1]],[lat[f[-1]],lat[f[-1]]],'b-',linewidth=2)
-                    worldmap.plot(ax=ax,color='lightgrey')
-                    ax.get_xaxis().set_visible(False)
-                    ax.get_yaxis().set_visible(False)
-                    fig.savefig(os.path.join(plot_debug_loc,'Lat_dependency_Timestep_'+str(i)+'.png'),dpi=300)
-                    plt.close(fig)
-
-                gp = [f[0],f[-1]]
-                print(gp)
-                g = np.squeeze(np.where((lat<=lat[gp[1]]) & (lat>=lat[gp[0]])))
-                lat_t = lat[g]
-                # lon = lon[g]
-                cci_data_t = cci_data[g,:]
-                cci_unc_t = cci_unc[g,:]
-                # cci = cci[:,g]
-                ocean_t = ocean[g,:]
-                flag_t = flag[g,:]
-                # ocean = ocean[:,g]
-                # plt.figure()
-                # plt.pcolor(lon,lat,cci)
-                # plt.show()
-                #
-                lon_g,lat_g = np.meshgrid(lon,lat_t)
-                print(lon_g.shape)
-                print(lat_g.shape)
-                #f = np.where((ocean_t > 0))
-                #print(len(f[0]))
-                l =int(cci[1]*0.04)
-                vlon = np.ravel(lon_g)[0::l]
-                vlat = np.ravel(lat_g)[0::l]
-
-                vchl = np.ravel(cci_data_t)[0::l]
-                vunc = np.ravel(cci_unc_t)[0::l]
-
-                f = np.where((np.isnan(vchl) == 0) & (np.isnan(vunc) == 0))
-                vlon = vlon[f]; vlat = vlat[f]; vchl = vchl[f]; vunc = vunc[f]
-                print(vlon.shape)
-                if plot_debug:
-                    # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
-                    fig, ax = plt.subplots(1,1,figsize=(14,7))
-                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
-                    ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
-                    ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
-                    ax.scatter(vlon,vlat,2,color='k')
-                    worldmap.plot(ax=ax,color='lightgrey')
-                    ax.get_xaxis().set_visible(False)
-                    ax.get_yaxis().set_visible(False)
-                    fig.savefig(os.path.join(plot_debug_loc,'Tiepoint_Timestep_'+str(i)+'.png'),dpi=300)
-                    plt.close(fig)
-
-                V = skg.Variogram(np.column_stack((vlon,vlat)), vchl, n_lags=70,model='exponential', normalize=False,maxlag=100,fit_method='lm')
-                if plot:
-                    V.plot(show=True)
-                    wait = input("Press Enter to continue.")
-                ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact')
-                f = np.where((np.isnan(cci_data_t)==1) & (ocean_t > 0))
-                print(len(f[0]))
-                field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
-                cci_data_t[f] = field
-                flag_t[f] = 3
-
-                ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact',values = vunc)
-                f = np.where((np.isnan(cci_unc_t)==1) & (ocean_t > 0))
-                field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
-                cci_unc_t[f] = field
-
-                cci_data[g,:] = cci_data_t
-                cci_unc[g,:] = cci_unc_t
-                flag[g,:] = flag_t
-                if plot_debug:
-                    # worldmap = gpd.read_file(gpd.datasets.get_path("ne_50m_land"))
-                    fig, ax = plt.subplots(1,1,figsize=(14,7))
-                    ax.pcolor(lon,lat,10**cci_data,cmap = cmocean.cm.algae,norm=colors.LogNorm(vmin=10**-2, vmax=10**1))
-                    ax.plot([lon[0],lon[-1]],[lat[gp[0]],lat[gp[0]]],'b-',linewidth=2)
-                    ax.plot([lon[0],lon[-1]],[lat[gp[-1]],lat[gp[-1]]],'b-',linewidth=2)
-                    # ax.scatter(vlon,vlat,2,color='k')
-                    worldmap.plot(ax=ax,color='lightgrey')
-                    ax.get_xaxis().set_visible(False)
-                    ax.get_yaxis().set_visible(False)
-                    fig.savefig(os.path.join(plot_debug_loc,'Kriged_Timestep_'+str(i)+'.png'),dpi=300)
-                    plt.close(fig)
-                if plot:
-                    fig, axes = plt.subplots(2, 1, figsize=(21,7))
-                    axes[0].pcolor(lon,lat,cci_data)
-
-                    axes[1].pcolor(lon,lat,flag)
-                    plt.show()
-
-                if ice:
-                    cci_data[(ice_data >= 0.9) & (flag != 2)] = np.log10(0.1)
-                    cci_unc[(ice_data >= 0.9) & (flag != 2)] = 0.4
-                    flag[(ice_data >= 0.9) & (flag != 2)] = 4
-
-                c = Dataset(file,'a')
-                c.variables['chl_filled'][:,:,i] = np.transpose(cci_data)
-                c.variables['chl_filled_unc'][:,:,i] = np.transpose(cci_unc)
-                c.variables['chl_flag'][:,:,i] = np.transpose(flag)
-                c.variables['chl_process'][i] = 1
-                #c.sync()
-                c.close()
-            else:
-                c = Dataset(file,'a')
-                c.variables['chl_process'][i] = 1
-                c.close()
-        else:
-            print('Processing flag == 1')
-            c.close()
-
+    du.makefolder(os.path.join(save_loc,'netcdf','kriging_temp'))
+    pool = mp.Pool(processes=process)
+    results = [pool.apply_async(oc_cci_cloud_kringing, args=(file,ice_name,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)),ice,plot_debug,plot_debug_loc)) for i in range(len(time))]
+    output = [p.get() for p in results]
+    collect_kriging(os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)),len(time),file)
 
     c = Dataset(file,'r')
     flag = np.array(c['chl_flag'])
     chla = np.array(c['chl_filled'])
     unc = np.array(c['chl_filled_unc'])
-    ice = np.array(c[ice_name])
+    ice_data = np.array(c[ice_name])
     lat = np.array(c['latitude'])
     lon = np.array(c['longitude'])
     c.close()
@@ -339,7 +421,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     """
     # Here we check for pixels that flag as 0 (not dealt with yet) and 4,5,6 (for some reason gone through previous averaging - should be fixed now...), and that aren't
     # highly ice covered.
-    f = np.where(((np.isnan(flag) == 1) | (flag == 5) | (flag == 6)) & (lat[np.newaxis,:,np.newaxis] < -40) & (ice <0.1))
+    f = np.where(((np.isnan(flag) == 1) | (flag == 5) | (flag == 6)) & (lat[np.newaxis,:,np.newaxis] < -40) & (ice_data <0.1))
     print(f)
 
     for i in range(len(f[0])):
@@ -390,7 +472,7 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     """
     Artic version
     """
-    f = np.where(((np.isnan(flag) == 1) | (flag == 7) | (flag == 8)) & (lat[np.newaxis,:,np.newaxis] > 40) & (ice <0.1))
+    f = np.where(((np.isnan(flag) == 1) | (flag == 7) | (flag == 8)) & (lat[np.newaxis,:,np.newaxis] > 40) & (ice_data <0.1))
     print(f)
 
     for i in range(len(f[0])):
@@ -444,89 +526,31 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     if 'flag_l' in c.variables.keys():
         c['flag_l'][:] = flag_l
     else:
-        sst_o = c.createVariable('flag_l','f4',('longitude','latitude','time'),zlib=False,fill_value=np.nan)
+        sst_o = c.createVariable('flag_l','f4',('longitude','latitude','time'),zlib=True,fill_value=np.nan)
         sst_o[:] = flag_l
         sst_o.standard_name = 'Chlorophyll-a concentration flag for number of months used in Argo approach'
         sst_o.comment = 'Negative indicates backwards; positive indicates forwards'
 
     c.close()
-    s = chla.shape
-    del chla, flag, unc, flag_l
+    s= chla.shape
+    del chla, flag, unc, flag_l,ice_data
 
-    """
-    """
-
-    lon_g,lat_g = np.meshgrid(lon,lat)
-    for i in range(0,s[2]):
-        print('Timestep: ' + str(i) + ' of ' + str(s[2]))
-        c = Dataset(file,'r')
-        chl_process = c['chl_process'][i]
-        if chl_process == 1:
-            cci_data = np.transpose(np.array(c['chl_filled'][:,:,i]))
-            flag_t = np.transpose(np.array(c['chl_flag'][:,:,i]))
-            unc_t = np.transpose(np.array(c['chl_filled_unc'][:,:,i]))
-            c.close()
-            print(cci_data)
-            cci_sum = np.zeros((ocean.shape[0]))
-            for j in range(ocean.shape[0]):
-                f = np.where(np.isnan(cci_data[j,:])==0)
-                #print(f)
-                if len(f[0])>0:
-                    cci_sum[j] = len(f[0])
-
-            total = cci_sum/ocean_sum
-            print(np.nanmean(total))
-            if np.nanmean(total) > 0.3:
-                print(lon_g.shape)
-                print(lat_g.shape)
-                f = np.where((np.isnan(cci_data)==0) & (ocean > 0))
-                print(len(f[0]))
-                l =int(cci_data.shape[1]*0.06)
-                vlon = np.ravel(lon_g[f])[0::l]
-                vlat = np.ravel(lat_g[f])[0::l]
-                #
-                vchl = np.ravel(cci_data[f])
-                print(vchl.size)
-                vchl = vchl[0::l]
-                print(vchl.size)
-                vunc = np.ravel(unc_t[f])[0::l]
-
-
-                V = skg.Variogram(np.column_stack((vlon,vlat)), vchl, n_lags=70,model='exponential', normalize=False,maxlag=100,fit_method='lm')
-                if plot:
-                    V.plot(show=True)
-                    wait = input("Press Enter to continue.")
-                ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact')
-                f = np.where((np.isnan(cci_data)==1) & (ocean > 0))
-                print(len(f[0]))
-                field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
-                cci_data[f] = field
-                flag_t[f] = 9
-
-                ok = skg.OrdinaryKriging(V, min_points=3, max_points=6, mode='exact',values = vunc)
-                field = ok.transform(lon_g[f].flatten(), lat_g[f].flatten())
-                unc_t[f] =field
-
-                c = Dataset(file,'a')
-                c.variables['chl_filled'][:,:,i] = np.transpose(cci_data)
-                c.variables['chl_filled_unc'][:,:,i] = np.transpose(unc_t)
-                c.variables['chl_flag'][:,:,i] = np.transpose(flag_t)
-                c.variables['chl_process'][i] = 2
-                #c.sync()
-                c.close()
-        else:
-            print('Processing != 1')
-            c.close()
+    du.makefolder(os.path.join(save_loc,'netcdf','final_kriging_temp'))
+    pool = mp.Pool(processes=process)
+    results = [pool.apply_async(occci_final_kriging, args=(file,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),plot_debug,plot_debug_loc,'chl_filled','chl_filled_unc','chl_flag')) for i in range(len(time))]
+    output = [p.get() for p in results]
+    collect_kriging(os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),len(time),file)
 
     c=Dataset(file,'a')
-    for i in range(0,s[2]):
+    time = np.array(c['time'])
+    for i in range(0,len(time)):
         chl = c.variables['chl_filled'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
         c.variables['chl_filled'][:,:,i] = chl
         chl = c.variables['chl_filled_unc'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
         c.variables['chl_filled_unc'][:,:,i] = chl
         chl = c.variables['chl_flag'][:,:,i]; chl[np.transpose(ocean)==0] = 1
         c.variables['chl_flag'][:,:,i] = chl
-    c.variables['chl_process'].processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
+    # c.variables['chl_process'].processing = '0 = No processing; 1 = Cloud Gap filling Kriging; 2 = Final Gap filling Kriging'
     c.variables['chl_filled'].base_variable = 'Generated from: OC-CCI_chlor_a'
     c.variables['chl_filled_unc'].base_variable = 'Generated from: OC-CCI_chlor_a_log10_rmsd'
     c.variables['chl_flag'].flags = '1 = Land; 2 = OC-CCI observations; 3 = Cloud Kriging; 4 = Under sea ice; 5 = Southern Hemisphere backwards Argo relationship; 6 = Southern Hemisphere forwards Argo relationship; 7 = Northern Hemisphere backwards Argo relationship; 8 = Northern Hemisphere forwards Argo relationship; 9 = Final kriging (moderate sea ice zones)'
@@ -549,13 +573,13 @@ def oc_cci_fill(file, bathy_file,daystep,res,reset = False,ice_name = 'OSISAF_se
     c.averaging_code = "https://github.com/JamieLab/OceanICU"
     c.close()
 
-    if single_out_loc:
-        c = Dataset(file,'r')
-        chla = np.array(c['chl_filled'])
-        flag = np.array(c['chl_flag'])
-        flag_l = np.array(c['flag_l'])
-        c.close()
-        save_chla(chla,flag,flag_l,lat,lon,time,single_out_loc,time_r)
+    # if single_out_loc:
+    #     c = Dataset(file,'r')
+    #     chla = np.array(c['chl_filled'])
+    #     flag = np.array(c['chl_flag'])
+    #     flag_l = np.array(c['flag_l'])
+    #     c.close()
+    #     save_chla(chla,flag,flag_l,lat,lon,time,single_out_loc,time_r)
 
 def output_single_chla(file,outloc):
     ref = datetime.datetime(1970,1,15)

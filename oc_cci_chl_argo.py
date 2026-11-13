@@ -131,7 +131,7 @@ def generate_occci(occci_file,res,start_yr,end_yr,area_wei=False,gebco_file = Fa
         ['OC-CCI','chlor_a_log10_rmsd',os.path.join(chla_loc,str(res)+'DEG_weighted','%Y','%Y_%m_*.nc'),0],
         ['OSISAF','ice_conc',os.path.join(osisaf_loc,'monthly',str(res)+'DEG','%Y','%Y%m*COM.nc'),0]]
 
-    cinp.driver(occci_file,vars,start_yr = start_yr,end_yr = end_yr,lon = lon,lat = lat,fill_clim=False)
+    cinp.driver(occci_file,vars,start_yr = start_yr,end_yr = end_yr,lon = lon,lat = lat,fill_clim=False,copts={'zlib':True})
     c = Dataset(occci_file,'a')
     c.variables['OC-CCI_chlor_a'].file_location = vars[0][2]
     c.variables['OC-CCI_chlor_a_log10_rmsd'].file_location = vars[1][2]
