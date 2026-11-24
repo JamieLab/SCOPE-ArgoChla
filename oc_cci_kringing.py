@@ -57,7 +57,7 @@ def unc_montecarlo(chla,chla_unc,per,per_unc,ens = 1000):
     chla_r = np.copy(chla) + np.random.normal(0,chla_unc,ens)
     per_r = np.copy(per) + np.random.normal(0,per_unc,ens)
     fun =  np.log10((10**chla_r) * np.abs((1-np.abs(per_r))))
-    out = np.std(fun)
+    out = np.nanstd(fun)
     return out
 
 def oc_cci_fill_setup(file,reset=True):
@@ -114,7 +114,8 @@ def oc_cci_cloud_kringing(file,ice_name,lat,lon,time,ocean,ocean_sum,i=0,save_lo
     outfile = os.path.join(save_loc,'temp_kriging_'+str(i)+'.nc')
 
     print('Timestep: ' + str(i) +' / '+date.strftime('%Y%m%d'))
-
+    print(outfile)
+    print(du.checkfileexist(outfile))
     if not du.checkfileexist(outfile):
 
         c = Dataset(file,'r')
@@ -137,9 +138,9 @@ def oc_cci_cloud_kringing(file,ice_name,lat,lon,time,ocean,ocean_sum,i=0,save_lo
                 cci_sum[j] = len(f[0])
 
         total = cci_sum/ocean_sum
-        print(np.nanmean(total))
-        if np.nanmean(total) > 0.3:
-            print('Total')
+        print('Timestep: ' + str(i) +' / Ocean total mean:' +str(np.nanmean(total)))
+        if np.nanmean(total) > 0.2:
+            print('Timestep: ' + str(i) +' / Running Kriging...')
 
             f = np.where(total>0.2)[0]
 
@@ -241,12 +242,16 @@ def oc_cci_cloud_kringing(file,ice_name,lat,lon,time,ocean,ocean_sum,i=0,save_lo
                 cci_data[(ice_data >= 0.9) & (flag != 2)] = np.log10(0.1)
                 cci_unc[(ice_data >= 0.9) & (flag != 2)] = 0.4
                 flag[(ice_data >= 0.9) & (flag != 2)] = 4
+            print('Timestep: ' + str(i) +' / '+'Saving data to: ' + outfile)
             du.netcdf_create_basic(outfile,np.transpose(cci_data),'chl_filled',lat,lon)
             du.netcdf_append_basic(outfile,np.transpose(cci_unc),'chl_filled_unc')
             du.netcdf_append_basic(outfile,np.transpose(flag),'chl_flag')
             d = Dataset(outfile,'a')
             d.date = date.strftime('%Y%m%d')
             d.close()
+            print('Timestep: ' + str(i) +' / '+' Data saved!')
+        else:
+            print('Timestep: ' + str(i) +' / Not running Kriging...')
 
 def occci_final_kriging(file,lat,lon,time,ocean,ocean_sum,i=0,save_loc='',plot_debug=False,plot_debug_loc='',
     chl_var = 'chl_filled',chl_unc_var = 'chl_filled_unc',chl_flag_var='chl_flag'):
@@ -260,9 +265,9 @@ def occci_final_kriging(file,lat,lon,time,ocean,ocean_sum,i=0,save_loc='',plot_d
 
         c = Dataset(file,'r')
 
-        cci_data = np.transpose(np.array(c['chl_filled'][:,:,i]))
-        flag_t = np.transpose(np.array(c['chl_flag'][:,:,i]))
-        unc_t = np.transpose(np.array(c['chl_filled_unc'][:,:,i]))
+        cci_data = np.transpose(np.array(c[chl_var][:,:,i]))
+        flag_t = np.transpose(np.array(c[chl_flag_var][:,:,i]))
+        unc_t = np.transpose(np.array(c[chl_unc_var][:,:,i]))
         c.close()
         print(cci_data)
         cci_sum = np.zeros((ocean.shape[0]))
@@ -306,15 +311,15 @@ def occci_final_kriging(file,lat,lon,time,ocean,ocean_sum,i=0,save_loc='',plot_d
             unc_t[f] =field
 
             du.netcdf_create_basic(outfile,np.transpose(cci_data),'chl_filled',lat,lon)
-            du.netcdf_append_basic(outfile,np.transpose(cci_unc),'chl_filled_unc')
-            du.netcdf_append_basic(outfile,np.transpose(flag),'chl_flag')
+            du.netcdf_append_basic(outfile,np.transpose(unc_t),'chl_filled_unc')
+            du.netcdf_append_basic(outfile,np.transpose(flag_t),'chl_flag')
             d = Dataset(outfile,'a')
             d.date = date.strftime('%Y%m%d')
             d.close()
 
-def collect_kriging(loc,len_i,occci_file):
+def collect_kriging(loc,len_i,occci_file,file_struct='temp_kriging_%i.nc'):
 
-    file = os.path.join(loc,'temp_kriging_%i.nc')
+    file = os.path.join(loc,file_struct)
     vars = ['chl_filled','chl_filled_unc','chl_flag']
 
     for v in vars:
@@ -322,6 +327,7 @@ def collect_kriging(loc,len_i,occci_file):
         t = 0
         for i in range(len_i):
             if du.checkfileexist(file.replace('%i',str(i))):
+                print('[KRIGING COLLECT] Loading: ' + file.replace('%i',str(i)))
                 c = Dataset(file.replace('%i',str(i)),'r')
                 chl = np.array(c[v])
                 if t == 0:
@@ -372,13 +378,16 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
         time_r[i,1] = (ref + datetime.timedelta(days=int(time[i]))).month
         time_r[i,2] = (ref + datetime.timedelta(days=int(time[i]))).day
     c.close()
-
-    du.makefolder(os.path.join(save_loc,'netcdf','kriging_temp'))
+    print('[OC_CCI_FILL] Running cloud kriging approach...' )
+    du.makefolder(os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)))
     pool = mp.Pool(processes=process)
-    results = [pool.apply_async(oc_cci_cloud_kringing, args=(file,ice_name,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)),ice,plot_debug,plot_debug_loc)) for i in range(len(time))]
-    output = [p.get() for p in results]
+    [pool.apply_async(oc_cci_cloud_kringing, args=(file,ice_name,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)),ice,plot_debug,plot_debug_loc)) for i in range(len(time))]
+    pool.close()
+    pool.join()
     collect_kriging(os.path.join(save_loc,'netcdf','kriging_temp_'+str(res)),len(time),file)
+    print('[OC_CCI_FILL] Finished cloud kriging approach!' )
 
+    print('[OC_CCI_FILL] BGC Argo filling started...' )
     c = Dataset(file,'r')
     flag = np.array(c['chl_flag'])
     chla = np.array(c['chl_filled'])
@@ -391,29 +400,33 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
     k = np.zeros((chla.shape[2]))
     for i in range(chla.shape[2]):
         a = np.where(np.isnan(chla[:,:,i])==0)
-        print(a)
+        # print(a)
         if len(a[0]) > 0:
             k[i] = 1
-    print(k)
+    # print(k)
 
     flag_l = np.zeros((chla.shape))
 
     files = ['argo_chla_southernocean','argo_chla_arctic']
     argo_b_data = np.loadtxt(os.path.join(out_loc,'relationships',f'backwards_'+files[0]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
-    argo_b = scipy.interpolate.interp1d(argo_b_data[:,0],argo_b_data[:,1])
-    argo_b_unc = scipy.interpolate.interp1d(argo_b_data[:,0],argo_b_data[:,2])
+    ap = np.where(np.isnan(argo_b_data[:,1]) == 0)[0]
+    argo_b = scipy.interpolate.interp1d(argo_b_data[ap,0],argo_b_data[ap,1])
+    argo_b_unc = scipy.interpolate.interp1d(argo_b_data[ap,0],argo_b_data[ap,2])
 
     argo_f_data = np.loadtxt(os.path.join(out_loc,'relationships',f'forwards_'+files[0]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
-    argo_f = scipy.interpolate.interp1d(argo_f_data[:,0],argo_f_data[:,1])
-    argo_f_unc = scipy.interpolate.interp1d(argo_f_data[:,0],argo_f_data[:,2])
+    ap = np.where(np.isnan(argo_f_data[:,1]) == 0)[0]
+    argo_f = scipy.interpolate.interp1d(argo_f_data[ap,0],argo_f_data[ap,1])
+    argo_f_unc = scipy.interpolate.interp1d(argo_f_data[ap,0],argo_f_data[ap,2])
 
     argo_b_arctic_data = np.loadtxt(os.path.join(out_loc,'relationships',f'backwards_'+files[1]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
-    argo_b_arctic = scipy.interpolate.interp1d(argo_b_arctic_data[:,0],argo_b_arctic_data[:,1])
-    argo_b_arctic_unc = scipy.interpolate.interp1d(argo_b_arctic_data[:,0],argo_b_arctic_data[:,2])
+    ap = np.where(np.isnan(argo_b_arctic_data[:,1]) == 0)[0]
+    argo_b_arctic = scipy.interpolate.interp1d(argo_b_arctic_data[ap,0],argo_b_arctic_data[ap,1])
+    argo_b_arctic_unc = scipy.interpolate.interp1d(argo_b_arctic_data[ap,0],argo_b_arctic_data[ap,2])
 
     argo_f_arctic_data = np.loadtxt(os.path.join(out_loc,'relationships',f'forwards_'+files[1]+'_'+str(res)+'deg.csv'),delimiter=',',skiprows=1)
-    argo_f_arctic = scipy.interpolate.interp1d(argo_f_arctic_data[:,0],argo_f_arctic_data[:,1])
-    argo_f_arctic_unc = scipy.interpolate.interp1d(argo_f_arctic_data[:,0],argo_f_arctic_data[:,2])
+    ap = np.where(np.isnan(argo_f_arctic_data[:,1]) == 0)[0]
+    argo_f_arctic = scipy.interpolate.interp1d(argo_f_arctic_data[ap,0],argo_f_arctic_data[ap,1])
+    argo_f_arctic_unc = scipy.interpolate.interp1d(argo_f_arctic_data[ap,0],argo_f_arctic_data[ap,2])
     """
     Here we apply the wintertime chl-a relationships developed from the Bio-Argo profilers for the Arctic and Southern Ocean
     seperately. This uses a relative relationship between the nearest in time OC-CCI observation (either backwards or forwards) and the Bio-Argo
@@ -422,9 +435,11 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
     # Here we check for pixels that flag as 0 (not dealt with yet) and 4,5,6 (for some reason gone through previous averaging - should be fixed now...), and that aren't
     # highly ice covered.
     f = np.where(((np.isnan(flag) == 1) | (flag == 5) | (flag == 6)) & (lat[np.newaxis,:,np.newaxis] < -40) & (ice_data <0.1))
-    print(f)
+    # print(f)
 
     for i in range(len(f[0])):
+        if i % 200 == 0:
+            print('[OC_CCI_FILL] Southern Ocean BGC Argo Running: ' + str((i/len(f[0]))*100) +' % complete' )
         t = 0
         l = daystep
         if k[f[2][i]] == 1:
@@ -476,6 +491,8 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
     print(f)
 
     for i in range(len(f[0])):
+        if i % 200 == 0:
+            print('[OC_CCI_FILL] Arctic Ocean BGC Argo Running: ' + str((i/len(f[0]))*100) +' % complete' )
         t = 0
         l = daystep
         if k[f[2][i]] == 1:
@@ -518,6 +535,8 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
                         t2 = 1
                 t = 1
 
+    print('[OC_CCI_FILL] BGC Argo filling complete!' )
+    print('[OC_CCI_FILL] Saving the data...' )
     c = Dataset(file,'a')
     c.variables['chl_filled'][:] = chla
     c.variables['chl_flag'][:] = flag
@@ -534,16 +553,24 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
     c.close()
     s= chla.shape
     del chla, flag, unc, flag_l,ice_data
+    print('[OC_CCI_FILL] Data saved!')
 
-    du.makefolder(os.path.join(save_loc,'netcdf','final_kriging_temp'))
+    print('[OC_CCI_FILL] Running final kriging approach...' )
+    du.makefolder(os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)))
     pool = mp.Pool(processes=process)
-    results = [pool.apply_async(occci_final_kriging, args=(file,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),plot_debug,plot_debug_loc,'chl_filled','chl_filled_unc','chl_flag')) for i in range(len(time))]
-    output = [p.get() for p in results]
-    collect_kriging(os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),len(time),file)
+    [pool.apply_async(occci_final_kriging, args=(file,lat,lon,time_r[i,:],ocean,ocean_sum,i,os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),plot_debug,plot_debug_loc,'chl_filled','chl_filled_unc','chl_flag')) for i in range(len(time))]
+    #output = [p.get() for p in results]
+    pool.close()
+    pool.join()
+    collect_kriging(os.path.join(save_loc,'netcdf','final_kriging_temp_'+str(res)),len(time),file,file_struct='temp_kriging_final_%i.nc')
+    print('[OC_CCI_FILL] Final kriging approach finished!')
 
+    print('[OC_CCI_FILL] Running final tidying of files...' )
     c=Dataset(file,'a')
     time = np.array(c['time'])
     for i in range(0,len(time)):
+        if i % 10 == 0:
+            print('[OC_CCI_FILL] Final tidying: ' + str((i/len(time))*100) +' % complete' )
         chl = c.variables['chl_filled'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
         c.variables['chl_filled'][:,:,i] = chl
         chl = c.variables['chl_filled_unc'][:,:,i]; chl[np.transpose(ocean)==0] = np.nan
@@ -572,7 +599,7 @@ def oc_cci_fill(file, bathy_file,res,reset = False,ice_name = 'OSISAF_sea_ice_fr
     c.code_location = 'https://github.com/JamieLab/SCOPE-ArgoChla'
     c.averaging_code = "https://github.com/JamieLab/OceanICU"
     c.close()
-
+    print('[OC_CCI_FILL] Finished final tidying of files!' )
     # if single_out_loc:
     #     c = Dataset(file,'r')
     #     chla = np.array(c['chl_filled'])
